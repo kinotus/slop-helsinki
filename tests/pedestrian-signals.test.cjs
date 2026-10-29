@@ -15,7 +15,8 @@ function crossing() {
         PersonRig: class { update() {} },
         PersonCrowd: class { meshes = []; begin() {} add() {} end() {} },
         PEDESTRIAN_DIVE_DURATION: 2.5
-      }
+      },
+      './terrain.js': { groundAt: () => 0 }
     }
   });
   const system = createPedestrianSystem({ nodes: [node] }, {

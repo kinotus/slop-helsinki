@@ -1,6 +1,6 @@
 // Openings in building walls where a mapped footpath runs through a building (passages, arcades, gate houses),
 // so walkers aren't stopped by a wall in the middle of a street.
-import { UTRECHT_DATA } from './city-config.js';
+import { HELSINKI_DATA } from './city-config.js';
 
 const CELL = 32;
 const WALKWAYS = new Set(['footway', 'pedestrian', 'path', 'steps', 'living_street']);
@@ -9,7 +9,7 @@ const HUG = 1.25; // a road centreline this close to a wall leaves no room for a
 const grid = new Map();
 const roadGrid = new Map();
 
-for (const road of UTRECHT_DATA?.roads || []) {
+for (const road of HELSINKI_DATA?.roads || []) {
   if (!road.tunnel && !road.bridge && (road.layer || 0) >= 0) {
     const q = road.pts;
     for (let i = 0; i + 3 < q.length; i += 2) {

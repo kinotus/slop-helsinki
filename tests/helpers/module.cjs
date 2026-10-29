@@ -2,7 +2,17 @@ const vm = require('node:vm');
 
 // Keep the existing isolated unit harnesses synchronous. Only the app's static import/export declarations
 // are adapted; dependencies are explicit namespace stubs, and the production function bodies run unchanged.
+// The terrain is off (flat sea-level ground) unless a test stubs it explicitly.
+const FLAT_TERRAIN = Object.freeze({
+  groundAt: () => 0,
+  groundPitch: () => 0,
+  groundNormal: () => ({ x: 0, y: 1, z: 0 }),
+  terrainEnabled: () => false,
+  terrainSurface: () => null
+});
+
 function loadModule(source, { imports = {}, globals = {}, filename = 'module.js' } = {}) {
+  imports = { './terrain.js': FLAT_TERRAIN, ...imports };
   const exported = [];
   const names = (list) => list.split(',').map((name) => name.trim()).filter(Boolean).map((name) => {
     const match = /^([\w$]+)(?:\s+as\s+([\w$]+))?$/.exec(name);
@@ -21,7 +31,7 @@ function loadModule(source, { imports = {}, globals = {}, filename = 'module.js'
     exported.push(...names(bindings));
     return '';
   });
-  code = code.replace(/^export\s+(const|let|var|function|class)\s+([\w$]+)/gm, (_declaration, kind, name) => {
+  code = code.replace(/^export\s+(const|let|var|async\s+function|function|class)\s+([\w$]+)/gm, (_declaration, kind, name) => {
     exported.push([name, name]);
     return `${kind} ${name}`;
   });

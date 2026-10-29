@@ -1,1 +1,4 @@
 .DS_Store
+
+# Quantized-mesh tiles downloaded by tools/build-helsinki-terrain.mjs
+tools/data/terrain-cache/

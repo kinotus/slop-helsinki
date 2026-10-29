@@ -1,7 +1,7 @@
-// Shop fascia signs at the real locations of Utrecht's named shops, cafés and restaurants (OpenStreetMap, see
-// tools/build-utrecht-shops.mjs). Each sign is a quad on the nearest building wall, all sharing one name atlas.
+// Shop fascia signs at the real locations of Helsinki's named shops, cafés and restaurants (OpenStreetMap, see
+// tools/build-helsinki-shops.mjs). Each sign is a quad on the nearest building wall, all sharing one name atlas.
 import * as THREE from 'three/webgpu';
-import { UTRECHT_SHOPS } from './utrecht-shops.js';
+import { HELSINKI_SHOPS } from './helsinki-shops.js';
 import { waterAt } from './city-config.js';
 
 const CELL_W = 256, CELL_H = 40, COLS = 8, MAX_NAMES = 800;
@@ -9,13 +9,16 @@ const MAX_WALL_DISTANCE = 25, MIN_WALL_LENGTH = 3, SIGN_Y = 3.4, MIN_SPACING = 2
 
 // Known chains in their house colours (wordmarks only, no logos); other names get a muted colour from a hash.
 const BRANDS = {
-  'Albert Heijn': ['#00a0e2', '#ffffff'], 'Albert Heijn to go': ['#00a0e2', '#ffffff'], 'HEMA': ['#d5112b', '#ffffff'],
-  'Etos': ['#00843d', '#ffffff'], 'Kruidvat': ['#e3001b', '#ffffff'], 'Jumbo': ['#f6c200', '#111111'],
-  'Blokker': ['#c8102e', '#ffffff'], 'Bruna': ['#1f3c88', '#ffffff'], 'Rituals': ['#1b1b1b', '#e8d9b8'],
-  'Starbucks': ['#00704a', '#ffffff'], "McDonald's": ['#da291c', '#ffc72c'], 'KFC': ['#e4002b', '#ffffff'],
-  "Domino's": ['#006491', '#ffffff'], 'Gall & Gall': ['#7a1f2b', '#ffffff'], 'Foot Locker': ['#111111', '#ffffff'],
-  'Søstrene Grene': ['#ffffff', '#1b1b1b'], 'Holland & Barrett': ['#006a4e', '#ffffff'], 'SPAR city': ['#007a3d', '#ffffff'],
-  'Bever': ['#e2001a', '#ffffff'], 'Snipes': ['#111111', '#ffe600'], 'Manfield': ['#111111', '#ffffff']
+  'K-Market': ['#ff6a10', '#ffffff'], 'K-Supermarket': ['#ff6a10', '#ffffff'], 'K-Citymarket': ['#ff6a10', '#ffffff'],
+  'S-market': ['#007841', '#ffffff'], 'Alepa': ['#e30613', '#ffffff'], 'Prisma': ['#003f8a', '#ffffff'], 'Lidl': ['#0050aa', '#fff000'],
+  'Alko': ['#e2001a', '#ffffff'], 'R-Kioski': ['#0a2d6e', '#ffffff'], 'Stockmann': ['#111111', '#ffffff'],
+  'Marimekko': ['#ffffff', '#111111'], 'Fazer Café': ['#002f6c', '#ffffff'], "Robert's Coffee": ['#5a1d1a', '#ffffff'],
+  'Espresso House': ['#2b1a17', '#f4e2c9'], 'Hesburger': ['#e30613', '#ffffff'], 'Kotipizza': ['#0f7a3a', '#ffffff'],
+  'Instrumentarium': ['#111111', '#ffffff'], 'Suomalainen Kirjakauppa': ['#00205b', '#ffffff'], 'Nordea': ['#0000a0', '#ffffff'],
+  'Starbucks': ['#00704a', '#ffffff'], "McDonald's": ['#da291c', '#ffc72c'], 'Burger King': ['#d62300', '#f5ebdc'],
+  'Subway': ['#008c15', '#ffc600'], 'Taco Bell': ['#702082', '#ffffff'], 'Picnic': ['#e4007c', '#ffffff'],
+  'Telia': ['#990ae3', '#ffffff'], 'Musti ja Mirri': ['#00a3e0', '#ffffff'], 'Iittala': ['#111111', '#ffffff'],
+  'Søstrene Grene': ['#ffffff', '#1b1b1b'], 'Normal': ['#ffffff', '#111111'], 'Joe & The Juice': ['#111111', '#f5a9b8']
 };
 const MUTED = [['#1c2b3a', '#f2e8cf'], ['#2d3a2e', '#f4f1de'], ['#3b2a2a', '#f6e8d0'], ['#26323f', '#ffffff'],
   ['#4a3b2a', '#fff3d6'], ['#222222', '#e8e8e8'], ['#33262e', '#ffe9ef'], ['#1f3d3d', '#e5fffa']];
@@ -84,13 +87,13 @@ export function createShopSigns(buildings) {
 
   // Names that occur most often get atlas cells first.
   const counts = new Map();
-  for (const s of UTRECHT_SHOPS) counts.set(s[0], (counts.get(s[0]) || 0) + 1);
+  for (const s of HELSINKI_SHOPS) counts.set(s[0], (counts.get(s[0]) || 0) + 1);
   const names = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a)).slice(0, MAX_NAMES);
   const cellOf = new Map(names.map((n, i) => [n, i]));
   const { tex, rows } = drawAtlas(names);
 
   const positions = [], uvs = [], indices = [], placed = [];
-  for (const [name, sx, sz] of UTRECHT_SHOPS) {
+  for (const [name, sx, sz] of HELSINKI_SHOPS) {
     const cell = cellOf.get(name);
     if (cell === undefined) continue;
     const wall = nearestWall(rings, sx, sz);
@@ -123,7 +126,7 @@ export function createShopSigns(buildings) {
   geometry.setIndex(indices);
   geometry.computeBoundingSphere();
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicNodeMaterial({ map: tex }));
-  mesh.name = 'UtrechtShopSigns';
+  mesh.name = 'HelsinkiShopSigns';
   mesh.userData.signCount = placed.length;
   return mesh;
 }

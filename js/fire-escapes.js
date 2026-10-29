@@ -5,6 +5,7 @@ import {
   abs, floor, fract, mod, round, step, fwidth, max, min, mix, clamp
 } from 'three/tsl';
 import { filteredPulse } from './tsl-materials.js';
+import { groundAt } from './terrain.js';
 
 const MAX_ESCAPES = 2400;
 const MAX_LANDINGS = 7; // (buildings.js addSurveyedFireEscapes)
@@ -147,6 +148,7 @@ export function createFireEscapes(group) {
   material.maskShadowNode = material.opacityNode.greaterThan(0.5);
   const mesh = new THREE.InstancedMesh(geometry, material, MAX_ESCAPES);
   mesh.name = 'FireEscapes';
+  mesh.userData.noDrape = true; // streamed with the ground height already applied
   mesh.count = 0;
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.frustumCulled = false;
@@ -162,7 +164,7 @@ export function createFireEscapes(group) {
     add(fe) {
       if (count >= MAX_ESCAPES) return;
       dummy.rotation.set(0, (fe.ry || 0) + fe.facing, 0);
-      dummy.position.set(fe.x, fe.y - (fe.storey / STOREY) * 2.2, fe.z);
+      dummy.position.set(fe.x, fe.y - (fe.storey / STOREY) * 2.2 + groundAt(fe.x, fe.z), fe.z);
       dummy.updateMatrix();
       mesh.setMatrixAt(count, dummy.matrix);
       sizes.setXY(count++, fe.storey, fe.h);

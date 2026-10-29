@@ -24,6 +24,7 @@ import {
   createLoftedBusMaterial
 } from './bus.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { groundAt, groundPitch } from './terrain.js';
 
 // Cars and buses follow the road graph, obey signals, yield at crossings and react to collisions.
 // Vehicles replenish around the player; pedestrian-system.js manages the nearby walking population.
@@ -63,7 +64,7 @@ const NEAR_RADIUS = 350;
 const VEHICLE_SPAWN_DISTANCE = 250;
 
 // 8-row LED destination sign atlas (route badge + destination) aligned with the 4-slot bus livery cycle
-// (slots 0/2 = Current MTA Blue/Gold, slot 1 = Select Bus Service, slot 3 = Classic White/Blue)
+// (slots 0/2 = HSL blue, slot 1 = runkolinja trunk line, slot 3 = legacy white/blue); Helsinki inner-city routes
 function createBusDestinationTexture() {
   const c = document.createElement('canvas');
   c.width = 512;
@@ -72,14 +73,14 @@ function createBusDestinationTexture() {
   ctx.fillStyle = '#090b10';
   ctx.fillRect(0, 0, 512, 512);
   const routes = [
-    ['M101', '3 AV / HARLEM', '#0058b8', '#ff9d1c'],
-    ['M15', '+SELECT BUS / SOUTH FERRY', '#009ad6', '#46d8ff'],
-    ['M42', '42 ST PIER / UN', '#0058b8', '#ff9d1c'],
-    ['M1', '5 AV / HARLEM', '#0058b8', '#ff9d1c'],
-    ['M7', 'COLUMBUS AV / 14 ST', '#0058b8', '#ff9d1c'],
-    ['M60', '+SBS / LAGUARDIA', '#009ad6', '#46d8ff'],
-    ['M4', 'MADISON AV / CLOISTERS', '#0058b8', '#ff9d1c'],
-    ['M104', 'BROADWAY / TIMES SQ', '#0058b8', '#ff9d1c']
+    ['16', 'KATAJANOKKA', '#007ac9', '#ffb238'],
+    ['500', 'RUNKOLINJA ITÄKESKUS', '#00b9e4', '#ffb238'],
+    ['18', 'EIRA / MUNKKIVUORI', '#007ac9', '#ffb238'],
+    ['24', 'SEURASAARI', '#007ac9', '#ffb238'],
+    ['20', 'EIRA / LAUTTASAARI', '#007ac9', '#ffb238'],
+    ['550', 'RUNKOLINJA WESTENDIN AS.', '#00b9e4', '#ffb238'],
+    ['14', 'HERNESAARI / PAJAMÄKI', '#007ac9', '#ffb238'],
+    ['17', 'KAMPPI / SÖRNÄINEN', '#007ac9', '#ffb238']
   ];
   routes.forEach(([route, dest, badgeBg, textCol], idx) => {
     const y0 = idx * 64;
@@ -184,8 +185,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const carWheelRightGeo = buildSteerableWheelGeo(BODY_SPECS.sedan, 1);
   const carWheelMat = createLoftedCarMaterial(BODY_SPECS.sedan, 0xffbe14);
 
-  const taxiYellow = new THREE.Color(0xffbe14);
-  const boroGreen = new THREE.Color(0x5cae3e);
+  // Helsinki taxis: mostly dark or white saloons & estates carrying the yellow TAXI roof sign
+  const taxiYellow = new THREE.Color(0x1d2126);
+  const boroGreen = new THREE.Color(0xeef0f2);
   const policeWhite = new THREE.Color(0xf6f9fc);
   // NYC street fleet palettes: white/black/grey/silver dominate with TLC black cars, blue/red/green accents,
   // metallic vs solid clearcoat, chrome/blackout trim & multi-spoke wheel styles encoded in carState.w.
@@ -256,8 +258,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       { col: new THREE.Color(0x9b1c1f), style: carStyleCode({ livery: 0, metallic: 0, trim: 2, wheel: 0 }) }  // Flame Red
     ]
   };
-  // Of every 20 cars: 4 yellow cabs, 5 sedans, 6 SUVs, 2 delivery vans, 2 minivans & a pickup. NYPD cruisers are sedans
-  // or Interceptor SUVs, green Boro cabs sedans or SUVs.
+  // Of every 20 cars: 4 taxis, 5 sedans, 6 SUVs, 2 delivery vans, 2 minivans & a pickup. POLIISI cars are sedans
+  // or SUVs, white taxis sedans or SUVs.
   const FLEET_MIX = ['taxi', 'sedan', 'van', 'sedan', 'suv', 'taxi', 'suv', 'minivan', 'suv', 'pickup',
     'taxi', 'sedan', 'suv', 'van', 'suv', 'taxi', 'minivan', 'sedan', 'suv', 'sedan'];
 
@@ -533,7 +535,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   const policeLightPool = [];
   for (let i = 0; i < POLICE_LIGHT_POOL_SIZE; i++) {
-    const pt = new THREE.PointLight(0xff1828, 0, 12.0, 1.25);
+    const pt = new THREE.PointLight(0x2a5cff, 0, 12.0, 1.25);
     pt.position.set(0, -1000, 0);
     trafficLightsGroup.add(pt);
     policeLightPool.push(pt);
@@ -671,8 +673,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (!camera) return;
     camera.updateMatrixWorld();
     camX = camera.position.x;
-    camY = camera.position.y;
     camZ = camera.position.z;
+    camY = camera.position.y - groundAt(camX, camZ); // height above the ground
     const me = camera.matrixWorld.elements;
     camFwdX = -me[8];
     camFwdZ = -me[10];
@@ -683,9 +685,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // planes depend on depth conventions, and the side planes alone already rule out everything behind the camera.
   function visible(x, z, r) {
     if (!hasView) return false;
+    const y = groundAt(x, z) + 1;
     for (let k = 0; k < 4; k++) {
       const { normal, constant } = frustum.planes[k];
-      if (normal.x * x + normal.y + normal.z * z + constant < -r) return false;
+      if (normal.x * x + normal.y * y + normal.z * z + constant < -r) return false;
     }
     return true;
   }
@@ -726,6 +729,72 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.pAhead = dx * fx + dz * fz;
     v.pRight = dz * fx - dx * fz;
     v.pSpeed = Math.max(0, player.vx * fx + player.vz * fz);
+  }
+
+  // HSL trams (tram.js) have right of way: drivers stop short of any tram section in their path, crossing or ahead.
+  // `tramSections` are the tram system's oriented boxes; `nearTrams` those around the focus this frame.
+  let tramSections = [];
+  const nearTrams = [];
+  function setTrams(sections) {
+    tramSections = sections || [];
+  }
+  function refreshNearTrams() {
+    nearTrams.length = 0;
+    const r = NEAR_RADIUS + LOOKAHEAD;
+    for (const t of tramSections) {
+      if (!t.hidden && Math.abs(t.x - focusX) < r && Math.abs(t.z - focusZ) < r) nearTrams.push(t);
+    }
+  }
+  // Bumper-to-bumper gap to the nearest tram section in v's path (Infinity if none); its speed v's way in v.tramSpeed
+  function tramGap(v) {
+    let best = Infinity;
+    v.tramSpeed = 0;
+    if (!nearTrams.length) return best;
+    const fx = Math.sin(v.yaw);
+    const fz = Math.cos(v.yaw);
+    for (const t of nearTrams) {
+      const dx = t.x - v.x;
+      const dz = t.z - v.z;
+      if (Math.abs(dx) > LOOKAHEAD + 6 || Math.abs(dz) > LOOKAHEAD + 6) continue;
+      const ahead = dx * fx + dz * fz;
+      if (ahead < 0) continue;
+      const c = t.sin * fx + t.cos * fz;
+      const s = t.sin * fz - t.cos * fx;
+      const along = t.halfL * Math.abs(c) + t.halfW * Math.abs(s);
+      const across = t.halfL * Math.abs(s) + t.halfW * Math.abs(c);
+      if (Math.abs(dz * fx - dx * fz) > v.halfWidth + across + 0.4) continue;
+      const gap = ahead - v.half - along;
+      // (one already alongside is for the collision response, not one to follow)
+      if (gap > 0 && gap < best) {
+        best = gap;
+        v.tramSpeed = Math.max(0, t.speed * c);
+      }
+    }
+    return best;
+  }
+
+  // Traffic and the player as oriented boxes, for the trams to stop short of (reused objects)
+  const obstacleBodies = [];
+  const obstacleList = [];
+  function collisionBodies() {
+    obstacleList.length = 0;
+    let n = 0;
+    const next = () => (obstacleBodies[n] ||= { x: 0, z: 0, sin: 0, cos: 1, halfW: 1, halfL: 1, player: false }, obstacleBodies[n++]);
+    for (const v of vehicles) {
+      if (!v.edge) continue;
+      const b = next();
+      const heading = v.yaw + v.yawOffset;
+      b.x = v.x; b.z = v.z; b.sin = Math.sin(heading); b.cos = Math.cos(heading);
+      b.halfW = v.halfWidth; b.halfL = v.halfL ?? v.half; b.player = false;
+      obstacleList.push(b);
+    }
+    if (player.active && player.entity) {
+      const b = next();
+      b.x = player.x; b.z = player.z; b.sin = player.fx; b.cos = player.fz;
+      b.halfW = player.halfW; b.halfL = player.halfL; b.player = true;
+      obstacleList.push(b);
+    }
+    return obstacleList;
   }
 
   // Gap to the player if it is ahead in the lane whose centre is `off` metres to the right of v
@@ -1213,6 +1282,14 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
         v.leaderSpeed = v.pSpeed;
       }
     }
+    const tg = tramGap(v);
+    if (tg < LOOKAHEAD) {
+      worst = Math.min(worst, brake(v, tg, v.tramSpeed));
+      if (tg < v.gap) {
+        v.gap = tg;
+        v.leaderSpeed = v.tramSpeed;
+      }
+    }
     const acc = Math.min(freeAcc(v) + worst, (cap - v.speed) * 2);
     v.acc = clamp(acc, -9, v.driver.a);
     // dodging the player: braking (as hard as it can, unless that would stop it before it has swerved out of the way),
@@ -1621,6 +1698,65 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     }
   }
 
+  // Trams are immovable (mass 0): traffic and the player that run into one are pushed out by the full overlap
+  const tramBody = { x: 0, z: 0, prevX: 0, prevZ: 0, sin: 0, cos: 1, halfW: 1, halfL: 1, mass: 0, vx: 0, vz: 0, angularVel: 0 };
+  function readTram(t) {
+    const b = tramBody;
+    b.x = t.x; b.z = t.z; b.prevX = t.prevX; b.prevZ = t.prevZ; b.sin = t.sin; b.cos = t.cos;
+    b.halfW = t.halfW; b.halfL = t.halfL; b.vx = t.vx; b.vz = t.vz;
+    return b;
+  }
+  function collideTrams() {
+    if (!nearTrams.length) return;
+    const hit = vehicleHit;
+    for (const v of vehicles) {
+      if (!v.edge) continue;
+      for (const t of nearTrams) {
+        const reach = v.half + t.halfL + t.halfW;
+        if (Math.abs(v.x - t.x) > reach + 2 || Math.abs(v.z - t.z) > reach + 2) continue;
+        readTrafficBody(v, contactA);
+        const b = readTram(t);
+        if (!sweptVehicleContact(contactA, b, hit) && !vehicleContact(contactA, b, hit)) continue;
+        const speed = resolveVehicleContact(contactA, b, hit);
+        shove(v, hit.ax - v.x + hit.nx * hit.depth, hit.az - v.z + hit.nz * hit.depth);
+        if (speed <= 0) continue;
+        writeTrafficVelocity(v, contactA);
+        impactSuspension(v, hit.nx, hit.nz, hit.impulse / contactA.mass);
+        if (speed > 2.2) spawnCollisionSparks(hit.x, 0.56, hit.z, hit.nx, hit.nz, speed);
+      }
+    }
+    if (!player.active || !player.entity) return;
+    const pe = player.entity;
+    const a = contactA;
+    for (const t of nearTrams) {
+      const reach = player.halfL + player.halfW + t.halfL + t.halfW;
+      if (Math.abs(pe.position.x - t.x) > reach + 2 || Math.abs(pe.position.z - t.z) > reach + 2) continue;
+      const heading = pe.heading || 0;
+      a.x = pe.position.x; a.z = pe.position.z;
+      a.prevX = pe.prevX ?? pe.position.x; a.prevZ = pe.prevZ ?? pe.position.z;
+      a.sin = Math.sin(heading); a.cos = Math.cos(heading);
+      a.halfW = player.halfW; a.halfL = player.halfL;
+      a.mass = pe.type === 'car' ? 1700 : pe.type === 'cargobike' ? 140 : pe.type === 'cyclist' ? 95 : 80;
+      a.vx = a.sin * (pe.speed || 0) + (pe.vx || 0);
+      a.vz = a.cos * (pe.speed || 0) + (pe.vz || 0);
+      a.angularVel = pe.type === 'car' ? pe.angularVel || 0 : 0;
+      const b = readTram(t);
+      if (!sweptVehicleContact(a, b, hit) && !vehicleContact(a, b, hit)) continue;
+      const speed = resolveVehicleContact(a, b, hit);
+      pe.position.x = hit.ax + hit.nx * hit.depth;
+      pe.position.z = hit.az + hit.nz * hit.depth;
+      if (pe.mesh) pe.mesh.position.copy(pe.position);
+      if (speed <= 0) continue;
+      pe.speed = a.vx * a.sin + a.vz * a.cos;
+      if (pe.type === 'car') {
+        pe.vx = a.vx - a.sin * pe.speed;
+        pe.vz = a.vz - a.cos * pe.speed;
+        pe.angularVel = a.angularVel;
+      }
+      if (speed > 2.2) spawnCollisionSparks(hit.x, 0.58, hit.z, hit.nx, hit.nz, speed);
+    }
+  }
+
   // =========================================================================
   // 6. PLACING VEHICLES
   // =========================================================================
@@ -1710,14 +1846,23 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     for (let w = 0; w < 2; w++) {
       const wz = w === 0 ? halfBase : -halfBase;
       dummy.rotation.set(v.wheelSpin + w * 0.55, rotY + (w === 0 ? v.steer : 0), roll, 'YXZ');
-      dummy.position.set(v.x - halfTrack * cosY + wz * sinY, radius, v.z + halfTrack * sinY + wz * cosY);
+      let x = v.x - halfTrack * cosY + wz * sinY, z = v.z + halfTrack * sinY + wz * cosY;
+      dummy.position.set(x, groundAt(x, z) + radius, z);
       dummy.updateMatrix();
       leftInst.setMatrixAt(i * 2 + w, dummy.matrix);
 
-      dummy.position.set(v.x + halfTrack * cosY + wz * sinY, radius, v.z - halfTrack * sinY + wz * cosY);
+      x = v.x + halfTrack * cosY + wz * sinY; z = v.z - halfTrack * sinY + wz * cosY;
+      dummy.position.set(x, groundAt(x, z) + radius, z);
       dummy.updateMatrix();
       rightInst.setMatrixAt(i * 2 + w, dummy.matrix);
     }
+  }
+
+  // Ground height under a vehicle and the slope (nose up, radians) along its heading over its wheelbase; the body
+  // pitch is the vehicle's own (suspension) pitch less the slope (a positive x rotation dips the nose)
+  function groundPose(v, sinY, cosY, half) {
+    v._gy = groundAt(v.x, v.z);
+    v._slope = groundPitch(v.x, v.z, sinY, cosY, half);
   }
 
   // Lamp state for the car & bus materials: brake lights while slowing down or standing, the turn signal on the side
@@ -1743,8 +1888,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const bodyInst = near ? bodies[c.bodyType].near : bodies[c.bodyType].far;
     const slot = bodyInst.count++;
 
-    dummy.position.set(c.x, 0.0, c.z);
-    dummy.rotation.set(c.pitch, rotY, c.roll, 'YXZ');
+    groundPose(c, sinY, cosY, spec.wheelZ);
+    dummy.position.set(c.x, c._gy, c.z);
+    dummy.rotation.set(c.pitch - c._slope, rotY, c.roll, 'YXZ');
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     bodyInst.setMatrixAt(slot, dummy.matrix);
@@ -1780,8 +1926,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     // Soft Under-Car Contact Shadow (AO) stays flat on the asphalt, sized to the body kind
     const visIdx = visibleCars++;
     const [shadowW, shadowL, shadowZ] = bodies[c.bodyType].shadow;
-    dummy.rotation.set(0, rotY, 0, 'YXZ');
-    dummy.position.set(c.x + sinY * shadowZ, 0.018, c.z + cosY * shadowZ);
+    dummy.rotation.set(-c._slope, rotY, 0, 'YXZ');
+    dummy.position.set(c.x + sinY * shadowZ, groundAt(c.x + sinY * shadowZ, c.z + cosY * shadowZ) + 0.018, c.z + cosY * shadowZ);
     dummy.scale.set(shadowW, 1.0, shadowL);
     dummy.updateMatrix();
     carShadowInst.setMatrixAt(visIdx, dummy.matrix);
@@ -1810,8 +1956,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
   function renderBike(b) {
     if (hasView && !visible(b.x, b.z, 6)) return;
-    dummy.position.set(b.x, 0, b.z);
-    dummy.rotation.set(b.pitch, b.yaw + b.yawOffset, b.roll, 'YXZ');
+    const yaw = b.yaw + b.yawOffset;
+    dummy.position.set(b.x, groundAt(b.x, b.z), b.z);
+    dummy.rotation.set(b.pitch - groundPitch(b.x, b.z, Math.sin(yaw), Math.cos(yaw), 0.55), yaw, b.roll, 'YXZ');
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     for (const m of bikeMeshes) m.setMatrixAt(b.slot, dummy.matrix);
@@ -1828,15 +1975,16 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (hasView && !visible(b.x, b.z, 22)) return;
 
     const i = visibleBuses++;
-    dummy.position.set(b.x, 0.018, b.z);
-    dummy.rotation.set(0, rotY, 0, 'YXZ');
+    groundPose(b, sinY, cosY, BUS_SPEC.wheelZ);
+    dummy.position.set(b.x, b._gy + 0.018, b.z);
+    dummy.rotation.set(-b._slope, rotY, 0, 'YXZ');
     dummy.scale.set(2.92, 1.0, 12.4);
     dummy.updateMatrix();
     busShadowInst.setMatrixAt(i, dummy.matrix);
 
     // Lofted Bus Body is defined in ground-relative Y (0.35m skirt to 3.23m roof fairing crown)
-    dummy.position.set(b.x, 0.0, b.z);
-    dummy.rotation.set(b.pitch, rotY, b.roll, 'YXZ');
+    dummy.position.set(b.x, b._gy, b.z);
+    dummy.rotation.set(b.pitch - b._slope, rotY, b.roll, 'YXZ');
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     busBodyInst.setMatrixAt(i, dummy.matrix);
@@ -1901,8 +2049,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
 
         const baseInt = (v.bus ? HEADLIGHTS.busIntensity : HEADLIGHTS.intensity) * beamScale * fade;
         // Match the body instance, including suspension and impact rotation.
-        dummy.position.set(v.x, 0, v.z);
-        dummy.rotation.set(v.pitch, v.yaw + v.yawOffset, v.roll, 'YXZ');
+        dummy.position.set(v.x, v._gy || 0, v.z);
+        dummy.rotation.set(v.pitch - (v._slope || 0), v.yaw + v.yawOffset, v.roll, 'YXZ');
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
         for (let side = -1; side <= 1; side += 2) {
@@ -1931,8 +2079,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       const pulse = 0.35 + 0.65 * Math.abs(wave);
       const side = redPhase ? -0.36 : 0.36;
       const pt = policeLightPool[policeLightsUsed++];
-      pt.color.setHex(redPhase ? 0xff1828 : 0x1868ff);
-      pt.position.set(v.x + side * v._cosY - 0.25 * v._sinY, v.bodyType === 'suv' ? 2.05 : 1.85, v.z - side * v._sinY - 0.25 * v._cosY);
+      pt.color.setHex(redPhase ? 0x2a5cff : 0x1868ff); // Finnish emergency lights are blue only
+      pt.position.set(v.x + side * v._cosY - 0.25 * v._sinY, (v._gy || 0) + (v.bodyType === 'suv' ? 2.05 : 1.85), v.z - side * v._sinY - 0.25 * v._cosY);
       pt.distance = 12.0;
       pt.intensity = 42.0 * tailScale * fade * pulse;
     }
@@ -1963,7 +2111,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
         const spdXZ = Math.hypot(sp.vx, sp.vz) || 0.001;
         const yawSp = Math.atan2(sp.vx, sp.vz);
         const pitchSp = -Math.atan2(sp.vy, spdXZ);
-        dummy.position.set(sp.x, sp.y, sp.z);
+        dummy.position.set(sp.x, sp.y + groundAt(sp.x, sp.z), sp.z);
         dummy.rotation.set(pitchSp, yawSp, 0, 'YXZ');
         dummy.scale.set(tLife, tLife, Math.max(0.4, Math.min(2.2, spdXZ * 0.16)) * tLife);
         dummy.updateMatrix();
@@ -1997,9 +2145,11 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     lastFocusX = focusX;
     lastFocusZ = focusZ;
     refreshNear();
+    refreshNearTrams();
     updateView(camera);
 
-    player.active = Boolean(playerEntity && activeMode !== 'helicopter' && playerEntity.position.y < 2.6);
+    player.active = Boolean(playerEntity && activeMode !== 'helicopter'
+      && playerEntity.position.y - groundAt(playerEntity.position.x, playerEntity.position.z) < 2.6);
     if (playerEntity) {
       const heading = playerEntity.heading || 0;
       const speed = playerEntity.speed || 0;
@@ -2052,6 +2202,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       for (const v of vehicles) if (v.edge) collideWithPlayer(v);
     }
     collideTraffic();
+    collideTrams();
     for (const v of vehicles) {
       if (!v.edge) continue;
       if (v.bus) renderBus(v);
@@ -2122,6 +2273,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     group,
     update,
     setCollisionListener,
+    setTrams,
+    bodies: collisionBodies,
     cars,
     buses,
     bikes,
@@ -2156,8 +2309,8 @@ function createHighwayTraffic(scene, lanes) {
   const KINDS = Object.keys(CAR_KINDS);
   const PALETTES = {
     taxi: [
-      { hex: 0xffbe14, style: carStyleCode({ livery: 0, metallic: 0, trim: 0, wheel: 0 }) },
-      { hex: 0xffbe14, style: carStyleCode({ livery: 0, metallic: 0, trim: 0, wheel: 1 }) }
+      { hex: 0x1d2126, style: carStyleCode({ livery: 0, metallic: 0, trim: 0, wheel: 0 }) },
+      { hex: 0xeef0f2, style: carStyleCode({ livery: 0, metallic: 0, trim: 0, wheel: 1 }) }
     ],
     sedan: [
       { hex: 0x12151a, style: carStyleCode({ livery: 3, metallic: 0, trim: 1, wheel: 1 }) },

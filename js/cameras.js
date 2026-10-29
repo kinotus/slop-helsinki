@@ -1,21 +1,22 @@
 import * as THREE from 'three/webgpu';
 import { bryantParkLawn } from './landmarks.js';
+import { groundAt } from './terrain.js';
 
 // js/cameras.js
 // Multi-camera system supporting Third-Person Chase (with mouse/touch orbit + zoom),
-// Low-Angle Action Cam, POV/Cockpit Cam, 7 Utrecht Architectural Cameras, and Auto-Director Drone.
+// Low-Angle Action Cam, POV/Cockpit Cam, 7 Helsinki Architectural Cameras, and Auto-Director Drone.
 
 const CAMERA_PRESETS = [
   { id: 'chase',       name: '3rd-Person Chase',         short: 'Chase',       category: 'follow', fov: 56 },
   { id: 'action',      name: 'Low-Angle Action',         short: 'Action',      category: 'follow', fov: 60 },
   { id: 'pov',         name: 'First-Person / Cockpit',   short: 'POV / Dash',  category: 'follow', fov: 68 },
-  { id: 'centralPark', name: 'Wilhelminapark', short: 'Wilhelmina',  category: 'scenic', fov: 52 },
-  { id: 'fifthAve',    name: 'Oudegracht & Domtoren', short: 'Oudegracht',     category: 'scenic', fov: 48 },
-  { id: 'timesSquare', name: 'Neude', short: 'Neude',    category: 'scenic', fov: 58 },
-  { id: 'chryslerGCT', name: 'Utrecht Centraal & Hoog Catharijne', short: 'Centraal',    category: 'scenic', fov: 50 },
-  { id: 'observatory', name: 'Domtoren Uitzicht', short: 'Domtoren',   category: 'scenic', fov: 52 },
-  { id: 'bryantPark',  name: 'Domplein & Dom', short: 'Domplein',   category: 'scenic', fov: 52 },
-  { id: 'waterfront',  name: 'Rijn & Skyline', short: 'Skyline',     category: 'scenic', fov: 46 },
+  { id: 'centralPark', name: 'Esplanadin puisto', short: 'Esplanadi',  category: 'scenic', fov: 52 },
+  { id: 'fifthAve',    name: 'Pohjoisesplanadi & Kauppatori', short: 'Kauppatori',     category: 'scenic', fov: 48 },
+  { id: 'timesSquare', name: 'Senaatintori', short: 'Senaatintori',    category: 'scenic', fov: 58 },
+  { id: 'chryslerGCT', name: 'Rautatientori & Asema', short: 'Rautatientori',    category: 'scenic', fov: 50 },
+  { id: 'observatory', name: 'Tuomiokirkko Panorama', short: 'Tuomiokirkko',   category: 'scenic', fov: 52 },
+  { id: 'bryantPark',  name: 'Uspenskin katedraali', short: 'Uspenski',   category: 'scenic', fov: 52 },
+  { id: 'waterfront',  name: 'Eteläsatama & Skyline', short: 'Skyline',     category: 'scenic', fov: 46 },
   { id: 'fixed',       name: 'Test camera',              short: 'Test',        category: 'scenic', fov: 55 },
   { id: 'drone',       name: 'Auto-Director Aerial',     short: 'Director',    category: 'scenic', fov: 50 }
 ];
@@ -196,11 +197,8 @@ class CameraSystem {
         const height = entity.chaseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
         const horizDist = Math.cos(this.orbitPitchOffset) * dist + speedLag;
 
-        desiredPos.set(
-          entity.position.x - Math.sin(totalYaw) * horizDist,
-          Math.max(0.65, entity.position.y + height),
-          entity.position.z - Math.cos(totalYaw) * horizDist
-        );
+        desiredPos.set(entity.position.x - Math.sin(totalYaw) * horizDist, 0, entity.position.z - Math.cos(totalYaw) * horizDist);
+        desiredPos.y = Math.max(groundAt(desiredPos.x, desiredPos.z) + 0.65, entity.position.y + height);
 
         const lookUpBias = entity.type === 'helicopter' ? 0.2 : entity.type === 'car' ? 0.52 : entity.type === 'cargobike' ? 0.8 : 1.55;
         const lookAhead = entity.type === 'cargobike' ? 0.35 : 5.2;
@@ -219,9 +217,10 @@ class CameraSystem {
 
         desiredPos.set(
           entity.position.x - Math.sin(entity.heading) * backDist + Math.cos(entity.heading) * sideOffset,
-          Math.max(0.55, lowY),
+          0,
           entity.position.z - Math.cos(entity.heading) * backDist - Math.sin(entity.heading) * sideOffset
         );
+        desiredPos.y = Math.max(groundAt(desiredPos.x, desiredPos.z) + 0.55, lowY);
         desiredLook.set(
           entity.position.x + Math.sin(entity.heading) * 3.2,
           entity.position.y + 1.05,
@@ -262,50 +261,50 @@ class CameraSystem {
 
       case 'centralPark': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(712 + sway, 25, 492);
-        desiredLook.set(808, 8, 381);
+        desiredPos.set(-380 + sway, 14, 205);
+        desiredLook.set(-100, 6, 200);
         break;
       }
 
       case 'fifthAve': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(-191 + sway, 12, -131);
-        desiredLook.set(0, 60, 0);
+        desiredPos.set(-60 + sway, 14, 190);
+        desiredLook.set(120, 6, 260);
         break;
       }
 
       case 'timesSquare': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(-287 + sway, 20, -421);
-        desiredLook.set(-348, 8, -521);
+        desiredPos.set(0 + sway, 8, 60);
+        desiredLook.set(-1, 30, -98);
         break;
       }
 
       case 'chryslerGCT': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(-588 + sway, 18, 247);
-        desiredLook.set(-745, 20, 136);
+        desiredPos.set(-420 + sway, 18, -160);
+        desiredLook.set(-597, 20, -227);
         break;
       }
 
       case 'observatory': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(0 + sway, 100, 0);
-        desiredLook.set(-745, 10, 136);
+        desiredPos.set(0 + sway, 90, -98);
+        desiredLook.set(200, 10, 400);
         break;
       }
 
       case 'bryantPark': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(110 + sway, 4, -65);
-        desiredLook.set(0, 40, 0);
+        desiredPos.set(180 + sway, 10, 220);
+        desiredLook.set(429, 40, 116);
         break;
       }
 
       case 'waterfront': {
         const sway = Math.sin(elapsed * 0.22) * 1.5;
-        desiredPos.set(-882 + sway, 45, 626);
-        desiredLook.set(0, 60, 0);
+        desiredPos.set(200 + sway, 30, 800);
+        desiredLook.set(0, 40, 0);
         break;
       }
 
@@ -354,7 +353,7 @@ class CameraSystem {
       this.followLookOffset.lerp(desiredLook.sub(entity.position), k);
       this.currentPos.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followOffset);
       this.currentLookAt.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followLookOffset);
-      this.currentPos.y = Math.max(0.55, this.currentPos.y);
+      this.currentPos.y = Math.max(groundAt(this.currentPos.x, this.currentPos.z) + 0.55, this.currentPos.y);
     } else {
       this.followEntity = null;
       const k = 1 - Math.exp(-dt * 8.5);

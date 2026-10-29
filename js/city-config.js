@@ -1,19 +1,19 @@
 import { GEO } from './nyc-geodata.js';
 
-// Utrecht spatial adapter for mrdoob/slop-newyork's engine, via an irregular-city data path.
-// Legacy export names are retained as API aliases; all visible geography is Utrecht.
-// 1 unit = 1 metre, x east, z south, origin at the Domtoren (true north up).
-const UTRECHT_DATA = GEO.utrecht;
+// Helsinki spatial adapter for mrdoob/slop-newyork's engine, via an irregular-city data path.
+// Legacy export names are retained as API aliases; all visible geography is Helsinki.
+// 1 unit = 1 metre, x east, z south, origin at Senaatintori (true north up).
+const HELSINKI_DATA = GEO.helsinki;
 const toPts = (flat) => { const out=[]; for(let i=0;i<flat.length;i+=2)out.push({x:flat[i],z:flat[i+1]});return out; };
-const AFF = UTRECHT_DATA.meta.lonLatAffine;
-// Equirectangular fit around the Domtoren (meta.lonLatAffine): enough for teleports.
+const AFF = HELSINKI_DATA.meta.lonLatAffine;
+// Equirectangular fit around Senaatintori (meta.lonLatAffine): enough for teleports.
 const projectLonLat = (lon,lat) => { const a=lon-AFF.lon0, b=lat-AFF.lat0; return {x:AFF.x[0]+AFF.x[1]*a+AFF.x[2]*b, z:AFF.z[0]+AFF.z[1]*a+AFF.z[2]*b}; };
-const [minX,minZ,maxX,maxZ] = UTRECHT_DATA.meta.bounds;
+const [minX,minZ,maxX,maxZ] = HELSINKI_DATA.meta.bounds;
 const ISLAND_BOUNDS = {minX,maxX,minZ,maxZ,sidewalkHeight:0.22,waterLevel:-2.2};
 const CUT_Z=minZ;
 const MANHATTAN_COASTLINE=toPts(GEO.manhattan);
 const getIslandBoundsAtZ=()=>({westX:minX,eastX:maxX});
-// Utrecht has an arbitrary mapped street network. Empty legacy grid registries prevent
+// Helsinki has an arbitrary mapped street network. Empty legacy grid registries prevent
 // the original corridor builder from inventing axis-aligned Manhattan streets.
 const AVENUES=[], ALL_AVENUES=[], STREETS=[], ALL_STREETS=[];
 const BROADWAY_LINE=[];
@@ -21,19 +21,20 @@ const getBroadwayX=()=>0;
 const WATERFRONT_PIERS=[], EAST_RIVER_BRIDGES=[], OUTER_BRIDGES=[];
 const ROOSEVELT_ISLAND_POLYGON=[],GOVERNORS_ISLAND_POLYGON=[],NJ_SHORELINE_POLYGON=[],LONG_ISLAND_POLYGON=[],LONG_ISLAND_POLYGONS=[],BROOKLYN_POLYGONS=[],QUEENS_POLYGONS=[],BRONX_POLYGONS=[],WESTCHESTER_POLYGON=[],NASSAU_POLYGON=[],UPPER_MANHATTAN_POLYGON=[],BRONX_POLYGON=[],STATEN_ISLAND_POLYGON=[],RANDALLS_ISLAND_POLYGON=[],LIBERTY_ISLAND_POLYGON=[],ELLIS_ISLAND_POLYGON=[],MILL_ROCK_POLYGON=[];
 const LIBERTY_STATUE_POS={x:0,z:0};
-// The legacy park bounds describe a raised Central Park lawn: Utrecht has none.
+// The legacy park bounds describe a raised Central Park lawn: Helsinki has none.
 const CENTRAL_PARK_BOUNDS={minX:-99999,maxX:-99998,minZ:-99999,maxZ:-99998};
-const ROADS=UTRECHT_DATA.roads.filter(r=>!r.tunnel).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
+const ROADS=HELSINKI_DATA.roads.filter(r=>!r.tunnel).map(r=>({...r,raw:r.name,name:r.name||`Unnamed ${r.kind}`,w:r.width,dir:r.oneway?(r.reverse?-1:1):0,highway:/motorway|trunk/.test(r.kind),pts:toPts(r.pts)}));
 const DRIVABLE=new Set(['motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','residential','unclassified','living_street']);
 const ROAD_DRIVING=ROADS.filter(r=>DRIVABLE.has(r.kind));
-const UTRECHT_AREAS=(UTRECHT_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
+const HELSINKI_AREAS=(HELSINKI_DATA.meta.areas||[]).map(a=>({...a,polygons:(a.polygons||[]).map(p=>({
  poly:toPts(p.ring),holes:(p.holes||[]).map(toPts)
 }))}));
+// Kaupunginosa (OSM admin_level 10) under (x, z); outside every polygon (sea, clipped edges) the nearest label wins.
 function districtAt(x,z){
- if(x<-700)return 'stationsgebied';
- if(z<-600)return 'wittevrouwen';
- if(z>500)return 'museumkwartier';
- return 'binnenstad';
+ for(const a of HELSINKI_AREAS)for(const p of a.polygons)if(pointInPoly(p.poly,x,z)&&!p.holes.some(h=>pointInPoly(h,x,z)))return a.id;
+ let best='kluuvi',dist=Infinity;
+ for(const a of HELSINKI_AREAS){if(!a.labelPoint)continue;const d=Math.hypot(x-a.labelPoint[0],z-a.labelPoint[1]);if(d<dist){dist=d;best=a.id;}}
+ return best;
 }
 function makeBlock(b,id,park=0){
  const poly=toPts(b.ring),holes=(b.holes||[]).map(toPts);
@@ -45,7 +46,7 @@ function makeBlock(b,id,park=0){
  a*=.5;cx=a?cx/(6*a):(minX+maxX)/2;cz=a?cz/(6*a):(minZ+maxZ)/2;
  return {id,osmId:b.id,poly,holes,rects:[],frames:null,park,parkName:park?b.name:'',rect:false,area:Math.abs(a),minX,maxX,minZ,maxZ,cx,cz,median:false,district:districtAt(cx,cz)};
 }
-const BLOCKS=[...UTRECHT_DATA.buildings.filter(b=>!b.part).map((b,i)=>makeBlock(b,i)),...UTRECHT_DATA.parks.map((b,i)=>makeBlock(b,'park:'+i,1))];
+const BLOCKS=[...HELSINKI_DATA.buildings.filter(b=>!b.part).map((b,i)=>makeBlock(b,i)),...HELSINKI_DATA.parks.map((b,i)=>makeBlock(b,'park:'+i,1))];
 const LANDMARK_BLOCKS=new Set();
 const LANDMARK_SITES=GEO.landmarks;
 function getBlockBounds(col,row){return BLOCKS[Number.isInteger(col)?col:0]||{minX:0,maxX:0,minZ:0,maxZ:0,cx:0,cz:0,width:0,depth:0};}
@@ -149,9 +150,9 @@ function sidewalkAt(x,z){
 }
 
 
-const WATER_POLYGONS=UTRECHT_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
+const WATER_POLYGONS=HELSINKI_DATA.water.map(w=>{const poly=toPts(w.ring);return {...w,poly,inner:(w.holes||[]).map(toPts),minX:Math.min(...poly.map(p=>p.x)),maxX:Math.max(...poly.map(p=>p.x)),minZ:Math.min(...poly.map(p=>p.z)),maxZ:Math.max(...poly.map(p=>p.z))};});
 function waterAtExact(x,z){return WATER_POLYGONS.some(w=>x>=w.minX&&x<=w.maxX&&z>=w.minZ&&z<=w.maxZ&&pointInPoly(w.poly,x,z)&&!w.inner.some(h=>pointInPoly(h,x,z)));}
-// The Oudegracht and the singels are mapped water polygons, and traffic calls waterAt many times per frame.
+// The harbour basins, Töölönlahti and the open sea are mapped water polygons, and traffic calls waterAt many times per frame.
 // A 4 m grid (scanline even-odd fill) answers inside/outside; only cells crossed by a shoreline use the exact test.
 const WATER_CELL=4, WNX=Math.ceil((maxX-minX)/WATER_CELL), WNZ=Math.ceil((maxZ-minZ)/WATER_CELL);
 const WATER_GRID=new Uint8Array(WNX*WNZ);
@@ -184,22 +185,36 @@ function nearestDrivingPoint(x,z,name=null){
  }
  return best;
 }
-function arrival(lon,lat,name=null){const p=projectLonLat(lon,lat),q=nearestDrivingPoint(p.x,p.z,name);return q?{x:q.x,z:q.z,heading:q.heading}:{...p,heading:0};}
-const defaultSpawn=arrival(5.1243,52.0885,'Lange Nieuwstraat');
-defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Lange Nieuwstraat';
+// Nearest point on a (named) drivable road that is clear roadway: Helsinki's squares and esplanades overlap pedestrian
+// areas, so candidates are sampled every few metres and the first one outside blocks and sidewalks wins.
+function arrival(lon,lat,name=null){
+ const p=projectLonLat(lon,lat),cands=[];
+ for(const r of ROAD_DRIVING.filter(r=>!name||r.name===name))for(let i=0;i+1<r.pts.length;i++){
+  const a=r.pts[i],b=r.pts[i+1],dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz);if(L<1)continue;
+  const sign=r.dir<0?-1:1,heading=Math.atan2(dx*sign,dz*sign);
+  for(let s=Math.min(1,L/2);s<L;s+=3){const x=a.x+dx*s/L,z=a.z+dz*s/L;cands.push({x,z,heading,d:Math.hypot(x-p.x,z-p.z)});}
+ }
+ cands.sort((u,v)=>u.d-v.d);
+ for(const c of cands.slice(0,4000))if(blockAt(c.x,c.z)===null)return {x:c.x,z:c.z,heading:c.heading};
+ const q=nearestDrivingPoint(p.x,p.z,name);return q?{x:q.x,z:q.z,heading:q.heading}:{...p,heading:0};
+}
+const defaultSpawn=arrival(24.9512,60.1688,'Aleksanterinkatu');
+defaultSpawn.x-=Math.cos(defaultSpawn.heading)*1.8;defaultSpawn.z+=Math.sin(defaultSpawn.heading)*1.8;defaultSpawn.name='Aleksanterinkatu';
 // Legacy material code samples ordered district bands through streetZ; keep distinct thresholds.
 const streetZ=(n=37)=>defaultSpawn.z+(37-Number(n))*25;
 const NYC_LANDMARKS=[
- ['dom','Domtoren','Domtoren',5.12139,52.09062,'Binnenstad','Korte Nieuwstraat'],
- ['centraal','Utrecht Centraal','Centraal',5.1100,52.0894,'Stationsgebied','Moreelsehoek'],
- ['hoogcatharijne','Hoog Catharijne','Hoog Catharijne',5.1130,52.0905,'Stationsgebied','Catharijnesingel'],
- ['stadhuis','Stadhuis','Stadhuis',5.1195,52.0919,'Binnenstad','Korte Minrebroederstraat'],
- ['vredenburg','TivoliVredenburg','Vredenburg',5.1148,52.0929,'Binnenstad','Vredenburg'],
- ['neude','Neude','Neude',5.1163,52.0950,'Binnenstad','Jacobskerkhof'],
- ['janskerkhof','Janskerkhof','Janskerkhof',5.1244,52.0944,'Binnenstad','Janskerkhof'],
- ['oudegracht','Oudegracht · Werven','Oudegracht',5.1186,52.0903,'Binnenstad','Zadelstraat'],
- ['centraalmuseum','Centraal Museum','Centraal Museum',5.1264,52.0869,'Museumkwartier','Agnietenstraat'],
-].map(([id,name,short,lon,lat,district,road])=>({id,name,short,...projectLonLat(lon,lat),district,road,lon,lat}));
+ ['senaatintori','Helsingin tuomiokirkko','Senaatintori',24.95219,60.17038,'Unioninkatu'],
+ ['rautatieasema','Helsingin päärautatieasema','Rautatieasema',24.94142,60.17154,'Kaivokatu'],
+ ['kauppatori','Kauppatori','Kauppatori',24.95300,60.16740,'Eteläranta'],
+ ['uspenski','Uspenskin katedraali','Uspenski',24.95995,60.16846,'Kanavakatu'],
+ ['esplanadi','Esplanadin puisto','Esplanadi',24.94800,60.16780,'Pohjoisesplanadi'],
+ ['stockmann','Stockmann','Stockmann',24.94197,60.16825,'Mannerheimintie'],
+ ['ateneum','Ateneum','Ateneum',24.94407,60.17002,'Kaivokatu'],
+ ['presidentinlinna','Presidentinlinna','Presidentinlinna',24.95631,60.16843,'Pohjoisesplanadi'],
+ ['oodi','Helsingin keskustakirjasto Oodi','Oodi',24.93798,60.17368,'Töölönlahdenkatu'],
+ ['kiasma','Kiasma','Kiasma',24.93658,60.17204,'Mannerheimintie'],
+].map(([id,name,short,lon,lat,road])=>{const p=projectLonLat(lon,lat),district=districtAt(p.x,p.z);
+ return {id,name,short,...p,district:HELSINKI_AREAS.find(a=>a.id===district)?.name||district,road,lon,lat};});
 const TELEPORT_LOCATIONS={};
 for(const lm of NYC_LANDMARKS){
  const p=arrival(lm.lon,lm.lat,lm.road);
@@ -212,10 +227,10 @@ function getLocationLabel(x,z){
  const nearby=nearestRoads(x,z,100).filter(q=>q.road.raw);
  if(nearby.length>1&&nearby[1].dist<22)return `${nearby[0].road.name} & ${nearby[1].road.name}`;
  if(nearby.length)return nearby[0].road.name;
- if(waterAt(x,z))return 'Singel · Utrecht';
+ if(waterAt(x,z))return 'Satama · Helsinki';
  const district=districtAt(x,z);
- const name=UTRECHT_AREAS.find(a=>a.id===district)?.name||district.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
- return name+' · Utrecht';
+ const name=HELSINKI_AREAS.find(a=>a.id===district)?.name||district.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+ return name+' · Helsinki';
 }
 // Keyboard shortcuts are ignored while typing into a form field (e.g. the map's street search box)
 function isTypingInField(e) {
@@ -244,7 +259,7 @@ function walkSignal(time, isAvenue) {
   return t < walk;
 }
 export {
-  UTRECHT_DATA, UTRECHT_AREAS, toPts, projectLonLat, pointInPoly, waterAt, waterAtExact, nearestDrivingPoint, defaultSpawn, sidewalkAt,
+  HELSINKI_DATA, HELSINKI_AREAS, toPts, projectLonLat, pointInPoly, waterAt, waterAtExact, nearestDrivingPoint, defaultSpawn, sidewalkAt,
   AVENUES,
   ALL_AVENUES,
   CENTRAL_PARK_BOUNDS,

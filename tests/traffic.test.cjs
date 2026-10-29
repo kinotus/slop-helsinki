@@ -419,3 +419,25 @@ test('a standing car does not turn, however far it is off its line', () => {
   assert.equal(v.yaw, 0);
   assert.equal(v.dl, 2);
 });
+
+test('drivers give way to a tram in their path, crossing or ahead, but not to one in the next lane', () => {
+  const nearTrams = [];
+  const tramGap = trafficFunction('tramGap', { LOOKAHEAD: 70, nearTrams });
+  // a car heading +z from the origin
+  const car = { x: 0, z: 0, yaw: 0, half: 2.25, halfWidth: 0.86 };
+  const section = (x, z, heading, speed = 0) => ({ x, z, sin: Math.sin(heading), cos: Math.cos(heading),
+    halfW: 1.22, halfL: 4.6, speed, hidden: false });
+  assert.equal(tramGap(car), Infinity, 'no trams');
+  nearTrams.push(section(0, 30, Math.PI / 2, 6));
+  close(tramGap(car), 30 - 2.25 - 1.22);
+  assert.ok(Math.abs(car.tramSpeed) < 1e-9, 'a crossing tram does not move the car\'s way');
+  nearTrams[0] = section(0, 30, 0, 6);
+  close(tramGap(car), 30 - 2.25 - 4.6);
+  close(car.tramSpeed, 6);
+  nearTrams[0] = section(4.5, 30, 0, 6);
+  assert.equal(tramGap(car), Infinity, 'tram in the next lane');
+  nearTrams[0] = section(0, -20, 0, 6);
+  assert.equal(tramGap(car), Infinity, 'tram behind');
+  nearTrams[0] = section(0, 3, Math.PI / 2, 6);
+  assert.equal(tramGap(car), Infinity, 'one already alongside is left to the collision response');
+});

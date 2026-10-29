@@ -29,6 +29,7 @@ import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { bryantParkLawn } from './landmarks.js';
 import { polygonContact } from './building-collision.js';
+import { groundAt, groundPitch } from './terrain.js';
 
 // js/controllers.js
 // Sculpted, non-blocky GTA 6-style 3D models, animations, and physics controllers
@@ -353,27 +354,24 @@ function createTaxiDoorDecalTexture() {
   c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#e5d7b5';
+  // Helsinki taxi door: body-coloured panel with the yellow taxi badge and lettering
+  ctx.fillStyle = '#2a2e33';
   ctx.fillRect(0, 0, 256, 128);
-  // Black T&LC circle emblem
-  ctx.fillStyle = '#111317';
+  ctx.fillStyle = '#ffd21a';
   ctx.beginPath();
-  ctx.arc(58, 64, 42, 0, Math.PI * 2);
+  ctx.roundRect(14, 26, 84, 76, 12);
   ctx.fill();
-  ctx.fillStyle = '#e5d7b5';
-  ctx.font = '900 32px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#111317';
+  ctx.font = '900 30px Inter, Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('T', 58, 66);
-  // Taxi roof sign typography & fare rate
-  ctx.fillStyle = '#111317';
+  ctx.fillText('TAXI', 56, 66);
+  ctx.fillStyle = '#f4f1e9';
   ctx.textAlign = 'left';
   ctx.font = '900 26px Inter, Arial, sans-serif';
-  ctx.fillText('UTRECHT TAXI', 112, 42);
-  ctx.font = '700 15px JetBrains Mono, monospace';
-  ctx.fillText('UTRECHT · TAXI', 112, 68);
-  ctx.font = '600 13px Inter, Arial, sans-serif';
-  ctx.fillText('TAXI UTRECHT', 112, 90);
+  ctx.fillText('HELSINKI', 112, 48);
+  ctx.font = '600 14px Inter, Arial, sans-serif';
+  ctx.fillText('HELSINGFORS', 112, 80);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   // The decals are mostly seen at grazing angles from the chase camera
@@ -386,7 +384,7 @@ function createNYLicensePlateTexture() {
   c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#f6c500';
+  ctx.fillStyle = '#f7f8f6';
   ctx.fillRect(0, 0, 256, 128);
   ctx.strokeStyle = '#171c21';
   ctx.lineWidth = 5;
@@ -396,10 +394,10 @@ function createNYLicensePlateTexture() {
   ctx.fillStyle = '#ffffff';
   ctx.font = '700 22px Arial, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('NL', 20, 91);
+  ctx.fillText('FIN', 20, 91);
   ctx.fillStyle = '#111820';
   ctx.font = '700 42px Arial, sans-serif';
-  ctx.fillText('GX-123-B', 143, 80);
+  ctx.fillText('TXI-123', 143, 80);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 16;
@@ -561,7 +559,9 @@ class ThirdPersonControllerManager {
       ent.position.x = destination.x;
       ent.position.z = destination.z;
       ent.heading = heading;
-      ent.position.y = heli ? altitude : this.getGroundHeight(destination.x, destination.z, this.activeMode);
+      ent.position.y = heli
+        ? Math.max(altitude, groundAt(destination.x, destination.z) + 0.25)
+        : this.getGroundHeight(destination.x, destination.z, this.activeMode);
     }
     ent.speed = 0;
     if (this.activeMode === 'person') {
@@ -697,7 +697,7 @@ class ThirdPersonControllerManager {
   }
 
   // =========================================================================
-  // 2. CAR (3D LOFTED SCULPTED NYC MEDALLION YELLOW TAXI SEDAN)
+  // 2. CAR (3D LOFTED SCULPTED HELSINKI TAXI SEDAN)
   // =========================================================================
   createCarEntity() {
     const root = new THREE.Group();
@@ -716,7 +716,7 @@ class ThirdPersonControllerManager {
     carBodyMesh.receiveShadow = true;
     chassisPivot.add(carBodyMesh);
 
-    // 2. Authentic NYC Taxi Side Door T&LC Medallion & Fare Tariff Emblem Decals, hugging the curved front doors
+    // 2. Helsinki taxi door decals, hugging the curved front doors
     const doorDecalTex = createTaxiDoorDecalTexture();
     const doorDecalMat = new THREE.MeshStandardNodeMaterial({
       map: doorDecalTex,
@@ -732,7 +732,7 @@ class ThirdPersonControllerManager {
       chassisPivot.add(decal);
     }
 
-    // 3. High-Detail Dutch yellow license plates on the bumpers, tilted to follow the fascias
+    // 3. Finnish white EU licence plates on the bumpers, tilted to follow the fascias
     const nyPlateTex = createNYLicensePlateTexture();
     const nyPlateMat = new THREE.MeshStandardNodeMaterial({ map: nyPlateTex, roughness: 0.28 });
     for (const front of [true, false]) {
@@ -788,7 +788,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'car',
-      label: 'Utrecht Taxi',
+      label: 'Helsinki Taxi',
       mesh: root,
       chassisPivot,
       carState,
@@ -949,7 +949,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'cyclist',
-      label: 'Utrecht Cyclist',
+      label: 'Helsinki Cyclist',
       mesh: root,
       leanPivot,
       frontWheel,
@@ -1641,6 +1641,11 @@ class ThirdPersonControllerManager {
   }
 
   getGroundHeight(x, z, mode = 'person') {
+    return this.flatGroundHeight(x, z, mode) + groundAt(x, z);
+  }
+
+  // Walking / driving surface over the (flat) street level: kerbs, lawns
+  flatGroundHeight(x, z, mode = 'person') {
     // Inside Central Park (5th Ave to Central Park West, 59th St to 110th St)
     const cp = CENTRAL_PARK_BOUNDS;
     if (x > cp.minX && x < cp.maxX && z > cp.minZ && z < cp.maxZ) {
@@ -1964,7 +1969,8 @@ class ThirdPersonControllerManager {
       c.position.z += (nextCos * c.speed + c.vz) * step;
       this.resolveHorizontalCollision(c.position, 1.35, c);
 
-      const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR_DRIVE.acceleration)) * 0.026;
+      const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR_DRIVE.acceleration)) * 0.026
+        - groundPitch(c.position.x, c.position.z, nextSin, nextCos, 1.4);
       const targetRoll = Math.max(-0.09, Math.min(0.09, correction / step * 0.012));
       c.pitchVel += ((targetPitch - c.chassisPivot.rotation.x) * 68 - c.pitchVel * 11.2) * step;
       c.rollVel += ((targetRoll - c.chassisPivot.rotation.z) * 68 - c.rollVel * 11.2) * step;
@@ -2090,10 +2096,11 @@ class ThirdPersonControllerManager {
     h.position.z += Math.cos(h.heading) * h.speed * dt;
     h.position.y += h.verticalSpeed * dt;
 
-    if (h.position.y < 0.25) {
-      this.reportCollision(h, groundCollider, 'ground', h.position.x, 0.25, h.position.z, 0, 1, 0, -h.verticalSpeed);
+    const floor = groundAt(h.position.x, h.position.z) + 0.25;
+    if (h.position.y < floor) {
+      this.reportCollision(h, groundCollider, 'ground', h.position.x, floor, h.position.z, 0, 1, 0, -h.verticalSpeed);
     }
-    h.position.y = Math.max(0.25, Math.min(380, h.position.y));
+    h.position.y = Math.max(floor, Math.min(380, h.position.y));
     this.resolveHorizontalCollision(h.position, 4.5, null, h);
 
     const targetPitch = (h.speed / maxHorizSpeed) * 0.24;

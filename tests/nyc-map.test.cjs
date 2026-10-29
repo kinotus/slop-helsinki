@@ -15,7 +15,7 @@ test('surveyed building courtyards remain holes in the map footprint layer', () 
   }
   const { footprintLayers } = loadModule(source + '\nexport { footprintLayers };', {
     globals: { Path2D },
-    imports: { './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [] } }
+    imports: { './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [], ISLAND_BOUNDS: { minX: -1500, maxX: 700, minZ: -1200, maxZ: 1100 } } }
   });
   const ring = (x0, z0, x1, z1) => [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }];
   const layers = footprintLayers([{ footprints: [{ h: 120, pts: ring(0, 0, 20, 20), holes: [ring(5, 5, 15, 15)] }] }]);
@@ -32,7 +32,7 @@ for (const [width, height, dpr] of [[500, 300, 1], [320, 180, 1.5], [1920, 1080,
     const window = { innerWidth: width, innerHeight: height, devicePixelRatio: dpr };
     const { NYCMapSystem } = loadModule(source, {
       globals: { window, performance: { now: () => 0 } },
-      imports: { './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [] } }
+      imports: { './nyc-geodata.js': { GEO: {} }, './city-config.js': { ROADS: [], ISLAND_BOUNDS: { minX: -1500, maxX: 700, minZ: -1200, maxZ: 1100 } } }
     });
     const map = Object.create(NYCMapSystem.prototype);
     // Capture the production render viewport; drawing primitives are irrelevant to coordinate conversion.

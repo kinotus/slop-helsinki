@@ -3,14 +3,15 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { getLocationLabel, isTypingInField, ROADS, NYC_LANDMARKS, TELEPORT_LOCATIONS } from './city-config.js';
+import { getLocationLabel, isTypingInField, ROADS, NYC_LANDMARKS, TELEPORT_LOCATIONS, ISLAND_BOUNDS } from './city-config.js';
 import { buildCityGrid } from './city-grid.js';
 import { buildLandmarks } from './landmarks.js';
 import { buildCityBlocks } from './buildings.js';
-import { loadBagBuildings } from './bag3d.js';
 import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
 import { buildRoadPaint } from './road-paint.js';
+import { createTramSystem } from './tram.js';
+import { HELSINKI_DATA } from './helsinki-geodata.js';
 import { ThirdPersonControllerManager } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
@@ -19,9 +20,12 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { terrainMode, loadTerrain, terrainEnabled } from './terrain.js';
+import { drapeStatic, liftColliders } from './terrain-drape.js';
+import { createHelsinkiTiles, tilesMode } from './helsinki-tiles.js';
 
 // js/main.js
-// Main entry point for Utrecht in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
+// Main entry point for Helsinki in Three.js WebGPURenderer & TSL (three.js dev, see index.html)
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
@@ -85,6 +89,31 @@ async function initApp() {
   const lightingSystem = new LightingSystem(scene, renderer);
   markInit('lighting');
 
+  // Ground: the City of Helsinki's terrain model (assets/helsinki-terrain.bin, see tools/build-helsinki-terrain.mjs),
+  // unless ?terrain=flat. Everything below is built at street level and draped onto it afterwards.
+  if (terrainMode() === 'real') {
+    await showLoadingStage('Loading Helsinki terrain...');
+    try {
+      await loadTerrain();
+    } catch (e) {
+      console.warn('[terrain] flat ground instead:', e);
+    }
+    markInit('terrain');
+  }
+  // Buildings: the City of Helsinki's textured 3D city model (3D Tiles, streamed from kartta.hel.fi). Its heights are
+  // above sea level, so it needs the terrain; otherwise (or with ?buildings=osm) OpenStreetMap footprints are extruded.
+  let cityModel = null;
+  if (tilesMode() === 'tiles' && terrainEnabled()) {
+    await showLoadingStage('Connecting to the Helsinki 3D city model...');
+    try {
+      cityModel = await createHelsinkiTiles(scene, renderer, { transcoderPath: import.meta.resolve('three/addons/libs/basis/') });
+    } catch (e) {
+      console.warn('[helsinki-3d] OpenStreetMap buildings instead:', e);
+    }
+    markInit('cityModel');
+  }
+  const sceneBeforeCity = new Set(scene.children);
+
   // 3. Build Manhattan Geography, Iconic Landmarks, Blocks, Street Details & Traffic
   await showLoadingStage('Building streets, parks and waterfronts...');
   const cityGrid = buildCityGrid(scene);
@@ -92,19 +121,10 @@ async function initApp() {
   await showLoadingStage('Building landmarks...');
   const { colliders: landmarkColliders } = buildLandmarks(scene);
   markInit('landmarks');
-  // Real 3D BAG building volumes; the OSM-extruded buildings remain the fallback when the tiles can't be loaded.
-  let bagBuildings = null;
-  await showLoadingStage('Loading 3D BAG buildings...');
-  try {
-    bagBuildings = await loadBagBuildings(scene, {
-      onProgress: (done, total) => { if (loadingStatus) loadingStatus.textContent = `Loading 3D BAG buildings ${done}/${total}…`; }
-    });
-  } catch (error) {
-    console.warn('[bag3d] falling back to OSM buildings:', error);
-  }
-  markInit('bag3d');
+  // Buildings are extruded from OpenStreetMap footprints (height, building:levels, roof:*), or, with the 3D city model
+  // streaming in, only their wall colliders are kept (the `bag` option).
   await showLoadingStage('Generating building facades...');
-  const cityBlocks = buildCityBlocks(scene, { bag: !!bagBuildings });
+  const cityBlocks = buildCityBlocks(scene, { bag: !!cityModel });
   markInit('blocks');
   const allColliders = [...landmarkColliders, ...cityBlocks.colliders, ...(cityGrid.colliders || [])];
 
@@ -125,6 +145,22 @@ async function initApp() {
   await showLoadingStage('Adding road markings...');
   buildRoadPaint(scene, trafficSystem.network);
   markInit('roadPaint');
+  const tramSystem = createTramSystem(scene, HELSINKI_DATA.tramLines);
+  trafficSystem.setTrams(tramSystem.sections);
+  markInit('trams');
+
+  // Lay the static city (streets, parks, quays, street furniture, OSM buildings) over the terrain. Vehicles, people and
+  // the per-frame light pools follow the ground at run time (terrain.js groundAt).
+  if (terrainEnabled()) {
+    await showLoadingStage('Fitting the city to the terrain...');
+    const dynamic = new Set([trafficSystem.group, highwayTraffic.group, tramSystem.group, cityModel?.group,
+      scene.getObjectByName('StoreClusteredLights'), scene.getObjectByName('StreetClusteredLights')]);
+    const staticRoots = scene.children.filter((o) => !sceneBeforeCity.has(o) && !dynamic.has(o));
+    const drape = drapeStatic(staticRoots, { waterLevel: ISLAND_BOUNDS.waterLevel });
+    liftColliders(allColliders, ISLAND_BOUNDS.waterLevel);
+    console.info(`[terrain] draped ${drape.meshes} meshes (${drape.vertices} vertices), ${drape.instanced} instanced meshes, ${drape.lights} lights`);
+    markInit('drape');
+  }
 
   // 4. Initialize Third-Person Controllers (Person, Car, Cyclist, Cargo Bike, Helicopter) & Multi-Camera System
   await showLoadingStage('Preparing player, vehicles and controls...');
@@ -179,7 +215,7 @@ async function initApp() {
   // Island-wide static geometry: chunk & distance-cull the small props, shadow stand-ins for the big casters
   // (scene-culling.js)
   await showLoadingStage('Preparing scene visibility and shadows...');
-  const cullingRoots = ['UtrechtCityGrid', 'UtrechtCityBlocks', 'UtrechtStreetDetails', 'ManhattanLandmarks', 'UtrechtBoundaryContext']
+  const cullingRoots = ['HelsinkiCityGrid', 'HelsinkiCityBlocks', 'HelsinkiStreetDetails', 'ManhattanLandmarks', 'HelsinkiBoundaryContext']
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
   setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
@@ -189,6 +225,7 @@ async function initApp() {
   const dynamicRoots = [
     trafficSystem.group,
     highwayTraffic.group,
+    tramSystem.group,
     scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
@@ -433,6 +470,8 @@ async function initApp() {
 
   // Where you are: the place's name over its street corner, drawn as a pair of NYC street-name signs
   const roadNames = new Set(ROADS.map((r) => r.name));
+  // Helsinki street signs are bilingual: the Finnish name over the Swedish one (OSM name:sv)
+  const swedishNames = new Map(ROADS.filter((r) => r.nameSv && r.nameSv !== r.name).map((r) => [r.name, r.nameSv]));
   const placeNames = new Set(NYC_LANDMARKS.map((l) => l.name));
   let locationText = '';
   function renderLocation(label) {
@@ -469,6 +508,13 @@ async function initApp() {
         const sign = document.createElement('span');
         sign.className = 'street-sign';
         sign.textContent = name;
+        const sv = swedishNames.get(name);
+        if (sv) {
+          const svLine = document.createElement('span');
+          svLine.className = 'street-sign-sv';
+          svLine.textContent = sv;
+          sign.appendChild(svLine);
+        }
         row.appendChild(sign);
       }
       nodes.push(row);
@@ -677,6 +723,21 @@ async function initApp() {
     for (const o of culled) o.frustumCulled = true;
   }
 
+  // Stream in the city model around the starting view, so its shaders compile below and the city opens complete.
+  if (cityModel) {
+    await showLoadingStage('Streaming the Helsinki 3D city model...');
+    cameraSystem.update(1 / 60, 0);
+    cameraSystem.camera.updateMatrixWorld();
+    const complete = await cityModel.preload(cameraSystem.camera, {
+      timeout: 25000,
+      onProgress: ({ loaded, pending, active }) => {
+        if (loadingStatus) loadingStatus.textContent = `Streaming the Helsinki 3D city model... ${loaded} tiles (${pending + active} to go)`;
+      }
+    });
+    if (!complete) console.warn('[helsinki-3d] the starting view is still streaming');
+    markInit('cityModelTiles');
+  }
+
   await precompileShaders();
   markInit('compile');
   await showLoadingStage('Preparing shadows and the first frame...');
@@ -701,6 +762,7 @@ async function initApp() {
     gamepadControls.update(dt);
     controllerManager.update(dt, elapsed);
     cameraSystem.update(dt, elapsed);
+    cityModel?.update(cameraSystem.camera);
     streetDetails.signalClock.value = elapsed;
     trafficSystem.update(
       dt,
@@ -710,6 +772,7 @@ async function initApp() {
       controllerManager.activeMode,
       cameraSystem.camera
     );
+    tramSystem.update(dt, trafficSystem.bodies());
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
@@ -760,7 +823,7 @@ async function initApp() {
         window.__slopwaw = {
           ready: true, firstFrameAt: performance.now(), init: initTimings.join(', '),
           backend: renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL fallback',
-          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem,
+          scene, renderer, cameraSystem, controllerManager, TELEPORT_LOCATIONS, trafficSystem, tramSystem, cityModel,
           teleport(key) { const l = TELEPORT_LOCATIONS[key]; return teleportTo(l.x, l.z, l.heading); },
           teleportXZ(x, z, heading = 0) { return teleportTo(x, z, heading); },
           mode(m) { selectMode(m); },
@@ -800,7 +863,7 @@ async function initApp() {
       if (elSpeed) elSpeed.textContent = String(kmh);
       if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (topSpeedKmh[mode] || 80))})`;
       document.body.classList.toggle('is-boosting', controllerManager.keys.boost && kmh > 0);
-      if (elAltitude) elAltitude.textContent = altitudeM.toLocaleString('de-DE');
+      if (elAltitude) elAltitude.textContent = altitudeM.toLocaleString('fi-FI');
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
       renderLocation(getLocationLabel(where.x, where.z));
@@ -811,7 +874,7 @@ async function initApp() {
 initApp().catch((error) => {
   console.error(error);
   const status = document.getElementById('loading-status');
-  if (status) status.textContent = 'Utrecht couldn’t open this time. Please try again.';
+  if (status) status.textContent = 'Helsinki couldn’t open this time. Please try again.';
   document.getElementById('loading-overlay')?.classList.add('has-error');
   const retry = document.getElementById('loading-retry');
   if (retry) {

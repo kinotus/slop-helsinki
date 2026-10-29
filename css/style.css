@@ -1,6 +1,6 @@
 /* css/style.css */
-/* NYC HUD design system: quiet graphite glass in the corners of the screen, taxi yellow for whatever is active,
-   NYC DOT green for street names, so that the city itself stays the star */
+/* Helsinki HUD design system: quiet graphite glass in the corners of the screen, taxi-sign yellow for whatever is
+   active, Finnish street-sign blue for street names, so that the city itself stays the star */
 
 :root {
   /* Surfaces */
@@ -20,7 +20,7 @@
   /* Accents */
   --taxi: #ffc21a;
   --taxi-ink: #17140a;
-  --sign-green: #0b6a46;
+  --sign-green: #0d4f9e; /* Finnish street-name sign blue (variable name kept for compatibility) */
   --highway: #c08a3e;
   --ok: #5ee08f;
   --warn: #ffc857;
@@ -638,7 +638,7 @@ body.hud-minimized .icon-show {
 }
 
 /* ------------------------------------------------------------------------------------------------------------------
-   Bottom left: NYC street-name signs over the GPS radar
+   Bottom left: Helsinki street-name signs over the GPS radar
    ------------------------------------------------------------------------------------------------------------------ */
 .location {
   display: flex;
@@ -678,7 +678,7 @@ body.hud-minimized .icon-show {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
-/* Green blade, white inset border, Highway Gothic lettering: the sign on every Manhattan corner */
+/* Blue blade, white inset border: the bilingual Helsinki street sign (Finnish over Swedish) */
 .street-sign {
   max-width: 210px;
   overflow: hidden;
@@ -696,6 +696,14 @@ body.hud-minimized .icon-show {
   outline: 1.5px solid rgba(255, 255, 255, 0.92);
   outline-offset: -4px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 10px 22px -10px rgba(0, 0, 0, 0.75);
+}
+
+.street-sign-sv {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.9;
 }
 
 .radar {

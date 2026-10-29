@@ -302,16 +302,16 @@ function createBusWheelMaterial() {
 let _busLoftedMat = null;
 
 /**
- * Creates the TSL procedural material for MTA New Flyer Xcelsior XD40/XE40 buses:
+ * Creates the TSL procedural material for HSL city buses (12 m low-floor):
  * - Black wraparound front windshield & destination-sign mask with 5 amber roof brow marker LEDs, wipers & MTA badge
  * - Swept Xcelsior LED projector headlamp clusters, front/rear NY plates, 4-lamp vertical circular rear LED columns,
  *   stamped upper-rear air intake louvers & rear ad frame
  * - Framed side window band with upper transom bar, interior passenger seats, yellow vertical grab stanchions & ceiling
  *   lighting (illuminated at night), plus glazed dual-leaf curb-side front & rear doors
  * - Per-instance livery variety (zero extra draw calls via `busState.w` or `instanceIndex`):
- *   0/default: Current MTA NYC Transit Blue/Gold livery (deep royal blue, yellow-gold rear cap, gold/cyan upper swoop & speed lines)
- *   1: MTA +Select Bus Service+ (SBS) livery (vivid turquoise/cyan lower body & front fascia, royal blue upper, gold swoop)
- *   2: Classic MTA White & Blue Stripe livery (pearl white body, vivid blue belt stripe & cyan ribbon)
+ *   0/default: HSL blue livery (HSL blue body & rear cap, white upper swoop & speed lines)
+ *   1: HSL runkolinja trunk-line livery (light cyan lower body & front fascia, HSL blue upper, white swoop)
+ *   2: Legacy white & blue stripe livery (pearl white body, vivid blue belt stripe & cyan ribbon)
  */
 function createLoftedBusMaterial() {
   if (_busLoftedMat) return _busLoftedMat;
@@ -485,12 +485,12 @@ function createLoftedBusMaterial() {
     .mul(covUp(0.35, p.y, invY))
     .mul(side);
 
-  // 4. Three Authentic MTA Liveries (Current Blue/Gold, Select Bus Service Cyan/Blue, Legacy White/Blue)
+  // 4. Three HSL liveries (HSL blue with white sweeps, trunk-line runkolinja with a lighter belt, legacy white/blue)
   const shadeY = smoothstep(0.34, 1.25, p.y).mul(0.16).add(0.84);
-  const mtaRoyalBlue = color(0x16358a);
-  const mtaSkyBlue = color(0x1a88e0);
-  const sbsCyan = color(0x1fb8d0);
-  const mtaGold = color(0xf0b21a);
+  const mtaRoyalBlue = color(0x007ac9); // HSL blue
+  const mtaSkyBlue = color(0x2a95d8);
+  const sbsCyan = color(0x00b9e4);
+  const mtaGold = color(0xf4f6f8); // HSL white sweeps
   const mtaWhite = color(0xedf1f6);
 
   // Upper-front gold & sky-blue swoop arc (from z = 0.8..4.55 above the windows); filtered across its slope
@@ -534,7 +534,7 @@ function createLoftedBusMaterial() {
   let modernLivery = mix(mtaRoyalBlue, sbsCyan, isSBS.mul(lowerBelt));
   modernLivery = mix(modernLivery, mix(mtaSkyBlue, sbsCyan, isSBS), max(upperSkyFill, max(midSkyBand, frontSpeedLines)));
   modernLivery = mix(modernLivery, mtaGold, max(max(upperGoldArc, midGoldBand), rearSpeedLines));
-  modernLivery = mix(modernLivery, color(0xeaa818), rear);
+  modernLivery = mix(modernLivery, color(0x006cb4), rear);
 
   // Assemble Classic / Legacy White & Blue Stripe livery
   const blueStripe = band(p.y.sub(1.04), 0.145, invY);

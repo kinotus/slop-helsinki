@@ -21,13 +21,14 @@ import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { SunLight } from 'three/addons/lights/SunLight.js';
 import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
+import { groundAt } from './terrain.js';
 
 // Atmospheric sky, environment lighting, sunlight and time-of-day presets.
 
 const TIME_PRESETS = {
   golden: {
     id: 'golden',
-    sunDir: new THREE.Vector3(-0.44, 0.58, -0.68).normalize(),
+    sunDir: new THREE.Vector3(-0.88, 0.34, -0.32).normalize(), // Helsinki summer evening: low sun in the WNW (~20°)
     sunColor: 0xffca92,
     sunIntensity: 5.8,
     hemiSky: 0x9abbe6,
@@ -52,7 +53,7 @@ const TIME_PRESETS = {
   },
   midday: {
     id: 'midday',
-    sunDir: new THREE.Vector3(-0.34, 0.82, -0.46).normalize(),
+    sunDir: new THREE.Vector3(-0.22, 0.77, 0.60).normalize(), // midsummer noon at 60° N: SSW, ~50° up
     sunColor: 0xfff5e8,
     sunIntensity: 6.6,
     hemiSky: 0xaad2ff,
@@ -77,7 +78,7 @@ const TIME_PRESETS = {
   },
   twilight: {
     id: 'twilight',
-    sunDir: new THREE.Vector3(-0.52, 0.36, -0.77).normalize(),
+    sunDir: new THREE.Vector3(-0.69, 0.18, -0.70).normalize(), // white-night dusk: sun skimming the NW horizon
     sunColor: 0xff9466,
     sunIntensity: 3.1,
     hemiSky: 0x4c6ca8,
@@ -300,7 +301,7 @@ class LightingSystem {
     // every frame inside SunShadowNode.renderShadow(), splitting [near, far] halfway between a uniform and a
     // logarithmic split (the near cascade ends at ~far / 4). Keep far at 300 m at street level so the near cascade
     // stays sharp, and expand it with altitude (helicopter / observatory) so shadows reach all the way down to street level.
-    const altitude = focusPos && Number.isFinite(focusPos.y) ? Math.max(0, focusPos.y) : 0;
+    const altitude = focusPos && Number.isFinite(focusPos.y) ? Math.max(0, focusPos.y - groundAt(focusPos.x, focusPos.z)) : 0;
     this.sunLight.shadow.camera.far = Math.max(300, Math.min(720, 260 + altitude * 1.6));
   }
 }

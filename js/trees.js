@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { createTreeMaterial } from './tsl-materials.js';
 import { polygonBoxOverlaps } from './building-collision.js';
+import { groundAt } from './terrain.js';
 
 // Seeded street and park trees with three geometry levels, regrouped by spatial cell as the camera moves.
 // Bark tubes and leaf cards share a material; atlas mipmaps preserve leaf coverage at a distance.
@@ -866,6 +867,7 @@ function createTreeClearance(colliders) {
 function createTreeField(scene, sites, colliders = []) {
   const group = new THREE.Group();
   group.name = 'Trees';
+  group.userData.noDrape = true; // planted on the terrain here (the LOD repacking rewrites the instances)
   const atlas = createLeafAtlas();
   const material = createTreeMaterial(atlas.texture);
 
@@ -933,11 +935,14 @@ function createTreeField(scene, sites, colliders = []) {
     if (!clearOfBuildings(worldBounds)) return;
     const i = N++;
     plantedSites.add(t);
+    // Cleared against the street-level colliders above; the planted tree stands on the terrain.
+    const ground = groundAt(t.x, t.z);
+    dummy.matrix.elements[13] += ground;
     dummy.matrix.toArray(mats, i * 16);
     tint.setHex(SPECIES[sp].tints[Math.floor(r3 * 2.999)]).multiplyScalar(0.82 + r1 * 0.36);
     data.set([tint.r, tint.g, tint.b, sp + r2 * 0.999], i * 4);
     px[i] = t.x;
-    py[i] = (t.y || 0) + 6 * s;
+    py[i] = (t.y || 0) + ground + 6 * s;
     pz[i] = t.z;
     tier[i] = Math.min(2, t.tier || 0);
     const key = Math.floor(t.x / TREE_CELL_SIZE) + ',' + Math.floor(t.z / TREE_CELL_SIZE);

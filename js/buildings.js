@@ -31,7 +31,7 @@ import {
   avenueX,
   getBroadwayX,
   EAST_RIVER_BRIDGES,
-  UTRECHT_DATA,
+  HELSINKI_DATA,
   districtAt
 } from './city-config.js';
 import {
@@ -44,10 +44,11 @@ import {
 } from './tsl-materials.js';
 import { GEO } from './nyc-geodata.js';
 import { fdrViaduct, pavedPlazaRects, parkTreeSites, sidewalkBlocks } from './city-grid.js';
-import { utrechtPoints, utrechtBounds, utrechtPolygonGeometry, nearestUtrechtRoad, utrechtSpatialGroups, utrechtGeometryGroups } from './utrecht-geometry.js';
+import { helsinkiPoints, helsinkiBounds, helsinkiPolygonGeometry, nearestHelsinkiRoad, helsinkiSpatialGroups, helsinkiGeometryGroups } from './helsinki-geometry.js';
 import { createShopSigns } from './shop-signs.js';
 import { solidWallSpans } from './passages.js';
 import { LANDMARK_EXCLUSIONS, LANDMARK_SOURCE_EXCLUSIONS } from './landmarks.js';
+import { groundAt } from './terrain.js';
 
 // Building massing follows each block's lots and frontage frames. Footprints combine non-overlapping boxes.
 // A spatial quadtree streams cornices, rooftop equipment, fire escapes and storefront details around the player.
@@ -251,10 +252,11 @@ function carve(r, holes, axis = 'x') {
   return out.map(([u0, u1, v0, v1]) => (flip ? rect(v0, v1, u0, u1) : rect(u0, u1, v0, v1)));
 }
 
-// `bag`: 3D BAG meshes already supply the facades and roofs, so only colliders and street-level details are built here.
+// `bag`: an external 3D building model (e.g. Helsinki's CityGML LoD2) already supplies the facades and roofs, so only
+// colliders and street-level details are built here.
 function buildCityBlocks(scene, { bag = false } = {}) {
   const group = new THREE.Group();
-  group.name = UTRECHT_DATA ? 'UtrechtCityBlocks' : 'ManhattanCityBlocks';
+  group.name = HELSINKI_DATA ? 'HelsinkiCityBlocks' : 'ManhattanCityBlocks';
   const colliders = [];
 
   // Frame of the lots being populated. Irregular blocks come with frontage frames (city-config.js BLOCKS: lots laid
@@ -320,8 +322,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }],
     // 1: Historic Warm Red/Terracotta Brick (Garment District / Chelsea / SoHo / Upper West Side)
     [createPreWarBuildingMaterial, {
-      stoneColor: UTRECHT_DATA ? 0xc8b49b : 0xa45a45,
-      trimColor: UTRECHT_DATA ? 0xe4dac5 : 0xcab9a0,
+      stoneColor: HELSINKI_DATA ? 0xc8b49b : 0xa45a45,
+      trimColor: HELSINKI_DATA ? 0xe4dac5 : 0xcab9a0,
       windowGlassColor: 0x16222e,
       windowWidth: 2.4,
       floorHeight: 3.5,
@@ -331,8 +333,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }],
     // 2: Classic NYC Brownstone & Dark Masonry (Cross-street rowhouses, Village & Harlem)
     [createPreWarBuildingMaterial, {
-      stoneColor: UTRECHT_DATA ? 0xb1b4a1 : 0x765443,
-      trimColor: UTRECHT_DATA ? 0xd7d9c9 : 0x503a2e,
+      stoneColor: HELSINKI_DATA ? 0xb1b4a1 : 0x765443,
+      trimColor: HELSINKI_DATA ? 0xd7d9c9 : 0x503a2e,
       windowGlassColor: 0x151e26,
       windowWidth: 2.2,
       floorHeight: 3.4,
@@ -1963,10 +1965,10 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     for (let k = 0; k < n; k++) out.push([x0, x1, z0 + k * (s + gap), z0 + k * (s + gap) + s]);
     return out;
   }
-  if (UTRECHT_DATA) {
+  if (HELSINKI_DATA) {
     // Exact OSM rings drive the original facade shaders and detail-streaming
     // pools. Thin, oriented facade boxes preserve courtyard openings and the
-    // angled street walls of Utrecht without Manhattan's synthetic block layouts.
+    // angled street walls of Helsinki without Manhattan's synthetic block layouts.
     const roofBuckets = [[], [], []];
     const roofMaterials = [0x655c51, 0x857369, 0x676b68].map(c => {
       const m = new THREE.MeshStandardNodeMaterial({ color: c, roughness: 0.9 });
@@ -1977,11 +1979,11 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       const b = pts[(i + 1) % pts.length]; return sum + a.x * b.z - b.x * a.z;
     }, 0) / 2;
     let built = 0;
-    for (const source of UTRECHT_DATA.buildings || []) {
+    for (const source of HELSINKI_DATA.buildings || []) {
       if ((LANDMARK_SOURCE_EXCLUSIONS.has(source.id) || LANDMARK_SOURCE_EXCLUSIONS.has(source.osmId))) continue;
       if (!source.ring || source.ring.length < 6) continue;
-      const poly = utrechtPoints(source.ring), holes = (source.holes || []).map(utrechtPoints);
-      const bounds = utrechtBounds(poly);
+      const poly = helsinkiPoints(source.ring), holes = (source.holes || []).map(helsinkiPoints);
+      const bounds = helsinkiBounds(poly);
       const cx = (bounds.minX + bounds.maxX) / 2, cz = (bounds.minZ + bounds.maxZ) / 2;
       if (cx < ISLAND_BOUNDS.minX - 100 || cx > ISLAND_BOUNDS.maxX + 100 || cz < ISLAND_BOUNDS.minZ - 100 || cz > ISLAND_BOUNDS.maxZ + 100) continue;
       if (LANDMARK_EXCLUSIONS.some(r => cx > r.minX && cx < r.maxX && cz > r.minZ && cz < r.maxZ)) continue;
@@ -2016,7 +2018,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           // courtyard normals point into the hole instead.
           const normalSign = ringIndex ? -direction : direction;
           const nx = dz / length * normalSign, nz = -dx / length * normalSign;
-          const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestUtrechtRoad(x + nx * 3, z + nz * 3, 35) : null;
+          const road = !updated && ringIndex === 0 && length > 6 && base < 0.5 ? nearestHelsinkiRoad(x + nx * 3, z + nz * 3, 35) : null;
           const shop = !updated && road && road.distance < road.width / 2 + 13 && !['church', 'cathedral', 'school', 'university', 'civic'].includes(source.kind);
           const face = ringIndex ? WALL_KINDS.rear : shop ? WALL_KINDS.shop : WALL_KINDS.entry;
           if (!bag) buckets[matIndex].push({ x, y: base + (eave - base) / 2 + 0.02, z, w: length + 0.06, h: eave - base, d: thickness,
@@ -2040,7 +2042,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
           }
         }
       }
-      let roof = bag ? null : utrechtPolygonGeometry(poly, holes, eave + 0.035);
+      let roof = bag ? null : helsinkiPolygonGeometry(poly, holes, eave + 0.035);
       if (pitched && !bag) {
         // Hipped/gabled roof on a mapped quadrilateral, preserving every eave
         // corner; no guessed Manhattan towers or rooftop water tanks.
@@ -2068,7 +2070,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }
     for (let materialIndex = 0; materialIndex < roofBuckets.length; materialIndex++) {
       let firstMesh;
-      for (const cell of utrechtGeometryGroups(roofBuckets[materialIndex])) for (let i = 0; i < cell.length; i += 250) {
+      for (const cell of helsinkiGeometryGroups(roofBuckets[materialIndex])) for (let i = 0; i < cell.length; i += 250) {
         const pieces = cell.slice(i, i + 250).map(g => {
           if (!g.index) return g;
           const expanded = g.toNonIndexed(); g.dispose(); return expanded;
@@ -2080,9 +2082,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         pieces.forEach(g => g.dispose());
       }
     }
-    group.userData = { city: 'Utrecht', buildings: built, originalFacadeShaders: true, originalDetailStreaming: true };
+    group.userData = { city: 'Helsinki', buildings: built, originalFacadeShaders: true, originalDetailStreaming: true };
   }
-  for (const b of UTRECHT_DATA ? [] : BLOCKS) {
+  for (const b of HELSINKI_DATA ? [] : BLOCKS) {
     if (b.park > 0.6 || b.median) continue;
     minLot = b.frames ? 12 : 15;
     for (const [th, px, pz, rects] of b.frames || [[0, 0, 0, b.rects]]) {
@@ -2201,7 +2203,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   buckets.forEach((items, matIdx) => {
     if (items.length === 0) return;
     let firstMesh;
-    for (const cell of UTRECHT_DATA ? utrechtSpatialGroups(items) : [items]) {
+    for (const cell of HELSINKI_DATA ? helsinkiSpatialGroups(items) : [items]) {
       const inst = createFacadeBoxes(materials[matIdx], cell);
       inst.castShadow = true;
       inst.receiveShadow = true;
@@ -2405,6 +2407,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   shedInst.castShadow = shedInst.receiveShadow = true;
   shedInst.frustumCulled = false;
   group.add(shedInst);
+  // update() streams these pools with the ground height already applied
+  for (const inst of [corniceInst, legsInst, barrelInst, coneInst, hvacInst, awningInst, shedInst]) inst.userData.noDrape = true;
 
   // 7. Ground-floor storefront clustered SpotLights (awnings/fascia signs)
   const storeLightGroup = new THREE.Group();
@@ -2487,7 +2491,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.cornices.length && corniceCount < MAX_CORNICES; i++) {
         const c = blk.cornices[i];
         dummy.rotation.set(0, c.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(c.x, c.y - c.h * 0.6, c.z);
+        dummy.position.set(c.x, c.y - c.h * 0.6 + groundAt(c.x, c.z), c.z);
         dummy.scale.set(c.w, c.h, c.d);
         dummy.updateMatrix();
         corniceInst.setMatrixAt(corniceCount++, dummy.matrix);
@@ -2497,16 +2501,17 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.waterTowers.length && wtCount < MAX_WATER_TOWERS; i++) {
         const wt = blk.waterTowers[i];
         dummy.scale.set(1, 1, 1);
+        const wg = groundAt(wt.x, wt.z);
 
-        dummy.position.set(wt.x, wt.y + 1.3, wt.z);
+        dummy.position.set(wt.x, wt.y + wg + 1.3, wt.z);
         dummy.updateMatrix();
         legsInst.setMatrixAt(wtCount, dummy.matrix);
 
-        dummy.position.set(wt.x, wt.y + 4.2, wt.z);
+        dummy.position.set(wt.x, wt.y + wg + 4.2, wt.z);
         dummy.updateMatrix();
         barrelInst.setMatrixAt(wtCount, dummy.matrix);
 
-        dummy.position.set(wt.x, wt.y + 6.7, wt.z);
+        dummy.position.set(wt.x, wt.y + wg + 6.7, wt.z);
         dummy.updateMatrix();
         coneInst.setMatrixAt(wtCount, dummy.matrix);
         wtCount++;
@@ -2516,7 +2521,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.hvacUnits.length && hvacCount < MAX_HVAC; i++) {
         const u = blk.hvacUnits[i];
         dummy.rotation.set(0, u.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(u.x, u.y + u.h * 0.5, u.z);
+        dummy.position.set(u.x, u.y + u.h * 0.5 + groundAt(u.x, u.z), u.z);
         dummy.scale.set(u.w, u.h, u.d);
         dummy.updateMatrix();
         hvacInst.setMatrixAt(hvacCount++, dummy.matrix);
@@ -2529,7 +2534,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       for (let i = 0; i < blk.awnings.length && awningCount < MAX_AWNINGS; i++) {
         const a = blk.awnings[i];
         dummy.rotation.set(0, a.ry ?? blk.ry ?? 0, 0);
-        dummy.position.set(a.x, a.y, a.z);
+        dummy.position.set(a.x, a.y + groundAt(a.x, a.z), a.z);
         dummy.scale.set(a.w, 0.75, a.d);
         dummy.updateMatrix();
         awningInst.setMatrixAt(awningCount, dummy.matrix);
@@ -2544,7 +2549,7 @@ function buildCityBlocks(scene, { bag = false } = {}) {
       // 6. Sidewalk construction sheds
       for (let i = 0; i < blk.scaffoldSheds.length && shedCount < MAX_SHEDS; i++) {
         const s = blk.scaffoldSheds[i];
-        dummy.position.set(s.x, s.y + 3.6, s.z);
+        dummy.position.set(s.x, s.y + 3.6 + groundAt(s.x, s.z), s.z);
         dummy.scale.set(s.w, 0.85, s.d);
         dummy.updateMatrix();
         shedInst.setMatrixAt(shedCount++, dummy.matrix);
@@ -2590,8 +2595,8 @@ function buildCityBlocks(scene, { bag = false } = {}) {
     }
 
     const camX = camera.position.x;
-    const camY = camera.position.y;
     const camZ = camera.position.z;
+    const camY = camera.position.y - groundAt(camX, camZ); // height above the ground
     const e = camera.matrixWorld.elements;
     const fwdLen = Math.hypot(e[8], e[10]) || 1;
     const fwdX = -e[8] / fwdLen;
@@ -2627,8 +2632,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
         const sideDir = a.sideDir || 1;
         const outX = Math.cos(ry) * sideDir;
         const outZ = -Math.sin(ry) * sideDir;
-        spot.position.set(a.x + outX * 0.45, 4.35, a.z + outZ * 0.45);
-        spot.target.position.set(a.x + outX * 1.85, 0.0, a.z + outZ * 1.85);
+        const sg = groundAt(a.x, a.z);
+        spot.position.set(a.x + outX * 0.45, sg + 4.35, a.z + outZ * 0.45);
+        spot.target.position.set(a.x + outX * 1.85, sg, a.z + outZ * 1.85);
         spot.target.updateMatrixWorld();
         spot.color.copy(storeThemeColors[themeIdx % storeThemeColors.length]);
         spot.intensity = STORE_SPOT_INTENSITY * fade;
@@ -2642,8 +2648,9 @@ function buildCityBlocks(scene, { bag = false } = {}) {
   // Initial Quadtree stream centered at Midtown 5th Ave & 42nd St
   update(0, 62, true);
 
-  if (UTRECHT_DATA) {
-    const shopSigns = createShopSigns(UTRECHT_DATA.buildings || []);
+  // the city model's textured facades already show the real shop fronts
+  if (HELSINKI_DATA && !bag) {
+    const shopSigns = createShopSigns(HELSINKI_DATA.buildings || []);
     if (shopSigns) group.add(shopSigns);
   }
 

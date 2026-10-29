@@ -1,0 +1,21 @@
+[out:json][timeout:300];
+(
+  way["building"](60.1600,24.9250,60.1800,24.9650);
+  relation["building"](60.1600,24.9250,60.1800,24.9650);
+  way["building:part"](60.1600,24.9250,60.1800,24.9650);
+  way["highway"](60.1600,24.9250,60.1800,24.9650);
+  way["railway"~"^(rail|light_rail|tram|subway)$"](60.1600,24.9250,60.1800,24.9650);
+  way["natural"="water"](60.1600,24.9250,60.1800,24.9650);
+  relation["natural"="water"](60.1600,24.9250,60.1800,24.9650);
+  way["natural"="coastline"](60.1600,24.9250,60.1800,24.9650);
+  way["waterway"~"^(river|canal|riverbank|dock)$"](60.1600,24.9250,60.1800,24.9650);
+  way["leisure"~"^(park|garden|playground|pitch)$"](60.1600,24.9250,60.1800,24.9650);
+  relation["leisure"~"^(park|garden)$"](60.1600,24.9250,60.1800,24.9650);
+  way["landuse"~"^(grass|recreation_ground|cemetery|village_green)$"](60.1600,24.9250,60.1800,24.9650);
+  node["natural"="tree"](60.1600,24.9250,60.1800,24.9650);
+  node["highway"="traffic_signals"](60.1600,24.9250,60.1800,24.9650);
+  node["railway"="tram_stop"](60.1600,24.9250,60.1800,24.9650);
+  relation["route"="tram"](60.1600,24.9250,60.1800,24.9650);
+  relation["boundary"="administrative"]["admin_level"="10"](60.1600,24.9250,60.1800,24.9650);
+);
+out geom;

@@ -10,7 +10,7 @@ test.before(async () => {
   ({ TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads, getIslandBoundsAtZ } = await import('../js/city-config.js'));
 });
 
-test('every teleport button has a destination on a real roadway in Utrecht', () => {
+test('every teleport button has a destination on a real roadway in Helsinki', () => {
   const buttons = [...read('index.html').matchAll(/data-teleport="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(Object.keys(TELEPORT_LOCATIONS).sort(), buttons.sort());
   for (const [name, point] of Object.entries(TELEPORT_LOCATIONS)) {
@@ -21,13 +21,13 @@ test('every teleport button has a destination on a real roadway in Utrecht', () 
   }
 });
 
-test('Domtoren arrival faces the tower', () => {
-  const point = TELEPORT_LOCATIONS.dom;
-  const tower = LANDMARK_SITES['Domtoren'];
+test('Senaatintori arrival faces Helsinki Cathedral', () => {
+  const point = TELEPORT_LOCATIONS.senaatintori;
+  const tower = LANDMARK_SITES['Helsingin tuomiokirkko'];
   const distance = Math.hypot(tower.x - point.x, tower.z - point.z);
-  assert.ok(distance > 10 && distance < 400, 'leave space for the tower view');
+  assert.ok(distance > 10 && distance < 400, 'leave space for the cathedral view');
   const alignment = ((tower.x - point.x) * Math.sin(point.heading) + (tower.z - point.z) * Math.cos(point.heading)) / distance;
-  assert.ok(alignment > 0.999, 'face the tower');
+  assert.ok(alignment > 0.999, 'face the cathedral');
 });
 
 test('preset and map teleports share arrival resets and mark the resolved landing point', () => {

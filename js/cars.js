@@ -984,7 +984,7 @@ function buildRoofRails(spec) {
   return list;
 }
 
-// NYC medallion roof light: a lit, gently tapered box on a black mount
+// Yellow TAXI roof sign: a lit, gently tapered box on a black mount
 function taxiSignPlacement(spec) {
   const L = carLayout(spec);
   const cab = spec.cabin;
@@ -1077,7 +1077,7 @@ function buildCarProxyGeometry(spec) {
   return mergeGeometries(parts);
 }
 
-// NYPD roof light bar (red on the -x half, blue on the +x half) for a body spec's roof, lit by createLightbarMaterial
+// POLIISI roof light bar (blue halves flashing in alternation) for a body spec's roof, lit by createLightbarMaterial
 function buildLightbarGeometry(spec = BODY_SPECS.sedan) {
   const L = carLayout(spec);
   const cab = spec.cabin;
@@ -1094,7 +1094,7 @@ function buildLightbarGeometry(spec = BODY_SPECS.sedan) {
 
 let _lightbarMat = null;
 
-// Light bar lenses: NYPD red (-x), blue (+x) & centre white takedown LED pods flashing in alternation per cruiser
+// Light bar lenses: blue (-x), blue (+x) & centre white takedown LED pods flashing in alternation per cruiser
 function createLightbarMaterial() {
   if (_lightbarMat) return _lightbarMat;
   const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: 0.25 });
@@ -1116,12 +1116,12 @@ function createLightbarMaterial() {
   };
   mat.colorNode = Fn(() => {
     const s = lightbar();
-    const lens = mix(mix(color(0xdce2e8), color(0x8e0d14), s.isRed), color(0x0f3c9a), s.isBlue).mul(s.pod);
+    const lens = mix(mix(color(0xdce2e8), color(0x0f3c9a), s.isRed), color(0x0f3c9a), s.isBlue).mul(s.pod);
     return mix(color(0x14171a), lens, s.isLens);
   })();
   mat.emissiveNode = Fn(() => {
     const s = lightbar();
-    const rEmit = color(0xff1820).mul(s.isRed.mul(s.redOn).mul(6.2));
+    const rEmit = color(0x286eff).mul(s.isRed.mul(s.redOn).mul(6.2)); // Finnish emergency lights are blue only
     const bEmit = color(0x286eff).mul(s.isBlue.mul(s.blueOn).mul(7.2));
     const wEmit = color(0xf4f8ff).mul(s.isWhite.mul(s.whiteOn).mul(3.8));
     return rEmit.add(bEmit).add(wEmit).mul(s.pod).mul(s.isLens);
@@ -1181,34 +1181,31 @@ function carStyleCode({ livery = 0, metallic = 0, trim = 0, wheel = 0 } = {}) {
 const _carMaterialCache = new Map();
 let _carPlateTexture;
 
-// One small generated atlas serves every rear plate (3 Empire Gold + 1 Excelsior White), with mipmaps for distant traffic.
+// One small generated atlas serves every plate (Finnish white plates with the blue EU FIN band), with mipmaps for distant traffic.
 function carPlateTexture() {
   if (_carPlateTexture) return _carPlateTexture;
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  const rows = [
-    { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'KBM-4728' },
-    { bg: '#e8edf2', bar: '#162b4c', fg: '#162b4c', label: 'JTR-8319' },
-    { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'HXL-2506' },
-    { bg: '#f0b416', bar: '#14233c', fg: '#14233c', label: 'T748219C' }
-  ];
-  rows.forEach(({ bg, bar, fg, label }, row) => {
+  const rows = ['KTB-472', 'JTR-831', 'HXL-250', 'ZAP-617'];
+  rows.forEach((label, row) => {
     const y0 = row * 64;
-    ctx.fillStyle = bg;
+    ctx.fillStyle = '#f7f8f6';
     ctx.fillRect(0, y0, 128, 64);
-    ctx.fillStyle = bar;
-    ctx.fillRect(0, y0, 128, 13);
-    ctx.fillRect(0, y0 + 56, 128, 8);
-    ctx.fillStyle = bg;
-    ctx.font = 'bold 9px sans-serif';
+    ctx.strokeStyle = '#14181c';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(2, y0 + 6, 124, 52);
+    ctx.fillStyle = '#1a47a8';
+    ctx.fillRect(3, y0 + 7, 18, 50);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 8px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('NEW YORK', 64, y0 + 7);
-    ctx.fillStyle = fg;
+    ctx.fillText('FIN', 12, y0 + 48);
+    ctx.fillStyle = '#111418';
     ctx.font = 'bold 21px monospace';
-    ctx.fillText(label, 64, y0 + 35);
+    ctx.fillText(label, 72, y0 + 33);
   });
   _carPlateTexture = new THREE.CanvasTexture(canvas);
   _carPlateTexture.colorSpace = THREE.SRGBColorSpace;
@@ -1489,7 +1486,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
           const letters = mix(float(0.4), smoothstep(0.15, 0.55, sin(p.z.mul(95.0))), fadeFine(fwZ))
             .mul(band(p.z.sub(doorMid), 0.1, fwZ))
             .mul(band(p.y.sub(0.66), 0.028, fwY));
-          const badgeFg = mix(color(0xffbe14), color(0xeaf4e6), isBoro).mul(ao);
+          const badgeFg = color(0xffd21a).mul(ao);
           bCol.assign(mix(mix(bCol, color(0x121417), badge), badgeFg, max(emblem, letters).mul(badge)));
         });
 

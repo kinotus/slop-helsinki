@@ -58,7 +58,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     return false;
   }
 
-  // Utrecht facades follow surveyed edges. Test their true oriented rectangles,
+  // Helsinki facades follow surveyed edges. Test their true oriented rectangles,
   // so a diagonal facade's large axis-aligned bounds cannot block the street.
   function overlapsFootprint(r,minX,maxX,minZ,maxZ) {
     if (!r.obb) return true;
@@ -74,9 +74,9 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
       const shore = getIslandBoundsAtZ(z);
       if (minX < shore.westX + SHORE_MARGIN || maxX > shore.eastX - SHORE_MARGIN) return false;
     }
-    // Utrecht's canals cross the district instead of surrounding it. The original
+    // Helsinki's canals cross the district instead of surrounding it. The original
     // lane/footprint checks remain unchanged; mapped bridges supply a land surface.
-    if (GEO.city === 'Utrecht') {
+    if (GEO.city === 'Helsinki') {
       for (const [x, z] of [[minX,minZ],[minX,maxZ],[maxX,minZ],[maxX,maxZ]]) {
         if (waterAt(x,z) && !nearestRoads(x,z,35).some(q => q.road.bridge && q.dist <= q.road.w/2+1)) return false;
       }
@@ -86,7 +86,7 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
 
   const blocked = (minX, maxX, minZ, maxZ) => !onLand(minX, maxX, minZ, maxZ) || query(minX, maxX, minZ, maxZ, (r) => !r.pedestrianOnly);
   const walkable = (minX, maxX, minZ, maxZ) => onLand(minX, maxX, minZ, maxZ) && !query(minX, maxX, minZ, maxZ, (r) => !r.curb);
-  const onSidewalk = (x, z) => GEO.city === 'Utrecht' ? !!sidewalkAt(x,z) : query(x, x, z, z, (r) => r.curb);
+  const onSidewalk = (x, z) => GEO.city === 'Helsinki' ? !!sidewalkAt(x,z) : query(x, x, z, z, (r) => r.curb);
   // The same test for the centreline streets (4b), which follow the real streets: the rectangles standing in for
   // irregular sidewalks may reach a little past their curbs, a whole park's bounds take in the streets around it and a
   // median mall's bounds (Allen St, Chrystie St...) both its roadways, so only a curb right at (x, z), median malls by
@@ -1047,8 +1047,8 @@ function buildRoadNetwork(sidewalks, obstacles, signalIntersections = []) {
     const n = nodes.find((m) => Math.abs(m.x - s.x) < 6 && Math.abs(m.z - s.z) < 6); // same tolerance as nodeAt
     if (n) n.signal = true;
   }
-  // The same signal/right-of-way system uses the mapped Utrecht signal locations.
-  if (GEO.city === 'Utrecht') for (const p of GEO.utrecht.signals || []) {
+  // The same signal/right-of-way system uses the mapped Helsinki signal locations.
+  if (GEO.city === 'Helsinki') for (const p of GEO.helsinki.signals || []) {
     let best = null, distance = 48;
     for (const n of nodes) {
       if (n.shape || !n.in || !n.out) continue;

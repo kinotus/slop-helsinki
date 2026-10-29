@@ -32,16 +32,16 @@ import {
 } from './city-config.js';
 
 // js/nyc-map.js
-// Original live radar and full-screen cartographic atlas, with mapped Utrecht layers.
+// Original live radar and full-screen cartographic atlas, with mapped Helsinki layers.
 // 1 unit = 1 metre; x east, z south. True north is up. Geometry is the same
-// OpenStreetMap snapshot used by the original WebGPU engine's Utrecht adapters.
+// OpenStreetMap snapshot used by the original WebGPU engine's Helsinki adapters.
 // NYCMapSystem remains the public class name to preserve upstream interfaces.
 
 const FONT = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const MIN_ZOOM = Math.min(0.06, 280 / (ISLAND_BOUNDS.maxX - ISLAND_BOUNDS.minX), 260 / (ISLAND_BOUNDS.maxZ - ISLAND_BOUNDS.minZ));
 const MAX_ZOOM = 3.0; // single lots
 const RADAR_SCALE = 0.32; // radar pixels per metre on the ground (zooms out with altitude)
-const GRID_BEARING = (GEO.frame && GEO.frame.bearingDeg) ?? 0; // Utrecht axes follow true north
+const GRID_BEARING = (GEO.frame && GEO.frame.bearingDeg) ?? 0; // Helsinki axes follow true north
 
 // Map palette, shared by the radar & the atlas (in step with css/style.css): graphite ground with the streets a shade
 // lighter than the blocks they run between, muted parks & water; a taxi-yellow GPS route, white landmarks & player,
@@ -72,6 +72,7 @@ const MAP = {
   highway: '#b27a35',
   bridge: '#c08a3e',
   ringbahn: '#a88963',
+  tram: '#3fb26b',
   route: '#ffc21a',
   search: '#5fd0ff',
   halo: 'rgba(8, 11, 15, 0.9)'
@@ -80,16 +81,15 @@ const MAP = {
 // Landmarks modelled by landmarks.js on their real OpenStreetMap lots (outlined in amber)
 const MODELLED_LANDMARKS = (NYC_LANDMARKS || []).map(l => l.name);
 
-// Neighbourhood, waterway and park labels in the same metre frame (origin at the Domtoren).
+// Waterway and park labels in the same metre frame (origin at Senaatintori); kaupunginosat are added below.
 const AREA_LABELS = [
- ['BINNENSTAD',200,-100,0],['OUDEGRACHT',-60,-80,1],['SINGEL',-420,-520,1],
- ['STATIONSGEBIED',-1000,-100,0],['WITTEVROUWEN',500,-850,0],['MUSEUMKWARTIER',500,700,0],
- ['WILHELMINAPARK',500,1250,2]
+ ['ETELÄSATAMA',220,470,1],['POHJOISSATAMA',480,-160,1],['TÖÖLÖNLAHTI',-840,-780,1],
+ ['ESPLANADI',-250,200,2],['KAISANIEMI',-400,-500,2]
 ];
 // New neighbourhood labels follow their actual clipped district geometry.
-for (const area of GEO.utrecht?.meta.areas || []) {
+for (const area of GEO.helsinki?.meta.areas || []) {
   if (!area.labelPoint || area.areaKm2 < 0.15 || false) continue;
-  AREA_LABELS.push([area.name.toLocaleUpperCase('nl-NL'), ...area.labelPoint, 0]);
+  AREA_LABELS.push([area.name.toLocaleUpperCase('fi-FI'), ...area.labelPoint, 0]);
 }
 
 // Shorter map names for a few real street names
@@ -262,9 +262,9 @@ function mapLayers() {
     } else if (r.w >= 15) L.mainRoads.line(r.pts);
   }
 
-  // Actual irregular Utrecht road surfaces, with bridge decks drawn over the canals.
+  // Actual irregular Helsinki road surfaces, with bridge decks drawn over the canals.
   L.airfields=[];
-  for (const feature of GEO.utrecht?.aeroways || []) {
+  for (const feature of GEO.helsinki?.aeroways || []) {
     const path = new Path2D(), polygon = Boolean(feature.ring?.length);
     if (polygon) {
       addRing(path, feature.ring);
@@ -272,14 +272,14 @@ function mapLayers() {
     } else if (feature.pts?.length) addLine(path, feature.pts);
     L.airfields.push({ path, polygon, width: feature.width || (feature.kind === 'runway' ? 45 : 15) });
   }
-  L.utrechtRoads=[]; L.utrechtBridges=[];
-  if (GEO.city === 'Utrecht') {
+  L.helsinkiRoads=[]; L.helsinkiBridges=[];
+  if (GEO.city === 'Helsinki') {
     const widths=new Map();
     for(const r of ROADS){
       const pedestrian=['footway','path','pedestrian','steps','cycleway'].includes(r.kind);
       const key=`${r.bridge?'bridge':'road'}:${r.w}:${pedestrian}`;
       let item=widths.get(key);
-      if(!item){item={path:new Path2D(),width:r.w,pedestrian};widths.set(key,item);(r.bridge?L.utrechtBridges:L.utrechtRoads).push(item);}
+      if(!item){item={path:new Path2D(),width:r.w,pedestrian};widths.set(key,item);(r.bridge?L.helsinkiBridges:L.helsinkiRoads).push(item);}
       addLine(item.path,r.pts);
     }
   }
@@ -292,7 +292,16 @@ function mapLayers() {
   }
 
   L.ringbahn = new Path2D();
-  for (const polygon of GEO.utrecht?.meta.ringbahn?.polygons || []) addRing(L.ringbahn, polygon.ring);
+  for (const polygon of GEO.helsinki?.meta.ringbahn?.polygons || []) addRing(L.ringbahn, polygon.ring);
+
+  L.tramLines = null; L.tramStops = [];
+  if (GEO.helsinki?.tramLines?.length) {
+    L.tramLines = new Path2D();
+    for (const line of GEO.helsinki.tramLines) {
+      addLine(L.tramLines, line.pts);
+      for (const st of line.stops || []) L.tramStops.push(st);
+    }
+  }
 
   // Bridges, Manhattan landing to the far landing, deck width to scale
   L.bridges = [...EAST_RIVER_BRIDGES, ...OUTER_BRIDGES].map((br) => {
@@ -426,12 +435,12 @@ function drawPlayerArrow(ctx, tipY, halfWidth, tailY) {
   ctx.fill();
 }
 
-// The original GPS styling now follows Utrecht's directed OSM road graph.
+// The original GPS styling now follows Helsinki's directed OSM road graph.
 let ROUTING=null;
 let ROUTE_CACHE=null;
-function getUtrechtMapRoute(x0,z0,x1,z1){
+function getHelsinkiMapRoute(x0,z0,x1,z1){
   const graph=GEO.roadGraph;
-  if(GEO.city !== 'Utrecht'||!graph)return null;
+  if(GEO.city !== 'Helsinki'||!graph)return null;
   if(!ROUTING){
     const points=[];for(let i=0;i<graph.nodes.length;i+=2)points.push({x:graph.nodes[i],z:graph.nodes[i+1]});
     const adjacency=points.map(()=>[]);
@@ -512,9 +521,9 @@ class NYCMapSystem {
     this.miniScale = RADAR_SCALE;
     this.miniCache = null; // { canvas, cx, cz, s, version }: the radar's ground layers, twice the radar's size
     const elCounts = document.getElementById('fullmap-counts');
-    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT} streets · ${BLOCKS.length.toLocaleString('en-US')} blocks`;
+    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT} streets · ${BLOCKS.length.toLocaleString('fi-FI')} blocks`;
     const ringLegend = document.getElementById('ringbahn-legend');
-    if (ringLegend) ringLegend.hidden = !GEO.utrecht?.meta.ringbahn;
+    if (ringLegend) ringLegend.hidden = !GEO.helsinki?.meta.ringbahn;
 
     // The map is drawn grid north up; the compass needle points to true north, 29° to its left
     const needle = document.getElementById('map-compass-needle');
@@ -545,9 +554,9 @@ class NYCMapSystem {
     this.searchHighlight = '';
     this.searchPath = null;
     this.textWidths = new Map();
-    // Start with Utrecht's central landmark as the active GPS waypoint.
-    const ts = NYC_LANDMARKS.find((l) => l.name === 'Domtoren') || { x: 0, z: 0 };
-    this.waypoint = { x: ts.x, z: ts.z, name: ts.name || 'Domtoren' };
+    // Start with Helsinki's central landmark as the active GPS waypoint.
+    const ts = NYC_LANDMARKS.find((l) => l.id === 'senaatintori') || { x: 0, z: 0 };
+    this.waypoint = { x: ts.x, z: ts.z, name: ts.short || 'Senaatintori' };
 
     // Street names measured before the web font arrived would be spaced for the fallback font: measure & draw again
     if (document.fonts) {
@@ -807,7 +816,7 @@ class NYCMapSystem {
     const z = Math.max(ISLAND_BOUNDS.minZ + 25, Math.min(ISLAND_BOUNDS.maxZ - 25, p.z));
     const shore = getIslandBoundsAtZ(z);
     const result={ x: Math.max(shore.westX + 12, Math.min(shore.eastX - 12, p.x)), z };
-    if(GEO.city === 'Utrecht'){
+    if(GEO.city === 'Helsinki'){
       const block=blockAt(result.x,result.z);
       if(waterAt(result.x,result.z)||(block&&!block.sidewalk&&!block.park)){
         const road=nearestDrivingPoint(result.x,result.z);
@@ -856,7 +865,7 @@ class NYCMapSystem {
     // 2. Piers, then Manhattan (roadway deck colour: the streets are the gaps between the blocks) in its bulkhead line
     ctx.fillStyle = MAP.piers;
     ctx.fill(L.piers);
-    ctx.fillStyle = GEO.city === 'Utrecht' ? MAP.land : MAP.streets;
+    ctx.fillStyle = GEO.city === 'Helsinki' ? MAP.land : MAP.streets;
     ctx.fill(L.manhattan);
     ctx.strokeStyle = MAP.shore;
     ctx.lineWidth = px(isMinimap ? 1.6 : 2.0);
@@ -886,7 +895,7 @@ class NYCMapSystem {
       if (field.polygon) ctx.fill(field.path, 'evenodd');
       else { ctx.lineWidth = Math.max(field.width, px(0.5)); ctx.stroke(field.path); }
     }
-    for(const r of L.utrechtRoads){ctx.strokeStyle=r.pedestrian?MAP.blockEdge:MAP.streets;ctx.lineWidth=Math.max(r.width,px(.5));ctx.stroke(r.path);}
+    for(const r of L.helsinkiRoads){ctx.strokeStyle=r.pedestrian?MAP.blockEdge:MAP.streets;ctx.lineWidth=Math.max(r.width,px(.5));ctx.stroke(r.path);}
 
     // 4. Mapped park water bodies and the canals
     if (v.sees(L.cpBounds)) {
@@ -905,7 +914,7 @@ class NYCMapSystem {
       ctx.stroke(L.cpWater);
     }
 
-    for(const r of L.utrechtBridges){ctx.strokeStyle=MAP.streets;ctx.lineWidth=r.width;ctx.stroke(r.path);}
+    for(const r of L.helsinkiBridges){ctx.strokeStyle=MAP.streets;ctx.lineWidth=r.width;ctx.stroke(r.path);}
 
     // 5. Building footprints, lowest first
     if (s >= 0.18) {
@@ -956,7 +965,7 @@ class NYCMapSystem {
     ctx.lineCap = 'round';
 
     // The actual railway loop makes the expansion boundary visible at city scale.
-    if (!isMinimap && GEO.utrecht?.meta.ringbahn) {
+    if (!isMinimap && GEO.helsinki?.meta.ringbahn) {
       ctx.strokeStyle = MAP.halo;
       ctx.lineWidth = px(4);
       ctx.stroke(L.ringbahn);
@@ -965,6 +974,20 @@ class NYCMapSystem {
       ctx.setLineDash([px(7), px(4)]);
       ctx.stroke(L.ringbahn);
       ctx.setLineDash([]);
+    }
+
+    // HSL tram network (OSM route=tram relations): green lines with stop dots on the full map
+    if (!isMinimap && L.tramLines) {
+      ctx.strokeStyle = MAP.halo;
+      ctx.lineWidth = px(4);
+      ctx.stroke(L.tramLines);
+      ctx.strokeStyle = MAP.tram;
+      ctx.lineWidth = px(2);
+      ctx.stroke(L.tramLines);
+      ctx.fillStyle = MAP.tram;
+      ctx.beginPath();
+      for (const st of L.tramStops) { ctx.moveTo(st.x + px(3), st.z); ctx.arc(st.x, st.z, px(3), 0, Math.PI * 2); }
+      ctx.fill();
     }
 
     // 10. Search highlight: every stretch of the matching streets
@@ -1141,7 +1164,7 @@ class NYCMapSystem {
     if (this.waypoint) {
       const wx = toX(this.waypoint.x);
       const wy = toY(this.waypoint.z);
-      const route=getUtrechtMapRoute(px,pz,this.waypoint.x,this.waypoint.z);
+      const route=getHelsinkiMapRoute(px,pz,this.waypoint.x,this.waypoint.z);
       drawRoute(ctx, 0, 0, wx, wy, 3,route&&route.map(p=>({x:toX(p.x),z:toY(p.z)})));
       drawWaypoint(ctx, wx, wy, 4.5);
     }
@@ -1232,7 +1255,7 @@ class NYCMapSystem {
     if (this.waypoint) {
       const wx = toX(this.waypoint.x);
       const wy = toY(this.waypoint.z);
-      const route=getUtrechtMapRoute(ent.position.x,ent.position.z,this.waypoint.x,this.waypoint.z);
+      const route=getHelsinkiMapRoute(ent.position.x,ent.position.z,this.waypoint.x,this.waypoint.z);
       drawRoute(ctx, toX(ent.position.x), toY(ent.position.z), wx, wy, 4,route&&route.map(p=>({x:toX(p.x),z:toY(p.z)})));
       drawWaypoint(ctx, wx, wy, 7);
     }
@@ -1295,7 +1318,7 @@ class NYCMapSystem {
     ctx.textBaseline = 'middle';
     const tracking = 'letterSpacing' in ctx;
     for (const [label, x, z, kind] of AREA_LABELS) {
-      if (kind === 0 && s > (GEO.city === 'Utrecht' ? 0.16 : 0.07)) continue;
+      if (kind === 0 && s > (GEO.city === 'Helsinki' ? 0.16 : 0.07)) continue;
       if (kind === 2 && (s < 0.035 || s > 1.2)) continue;
       const dx = toX(x);
       const dy = toY(z);
@@ -1388,4 +1411,4 @@ class NYCMapSystem {
   }
 }
 
-export { NYCMapSystem, getUtrechtMapRoute };
+export { NYCMapSystem, getHelsinkiMapRoute };

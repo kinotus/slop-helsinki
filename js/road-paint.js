@@ -3,12 +3,12 @@ import { CROSSWALK } from './road-network.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
-// actually drives and stops: dashed lane lines, double yellow centre lines on two-way roads, stop bars at the stop
-// lines, continental crosswalks across every intersection approach and green bike lanes along wide one-way avenues.
+// actually drives and stops, Finnish style: dashed white lane lines, a dashed yellow centre line between opposing
+// traffic, stop bars at the stop lines, zebra crosswalks across every intersection approach and white-lined bike lanes
+// along wide one-way streets.
 
 const WHITE = new THREE.Color(0xe6e2d6);
 const YELLOW = new THREE.Color(0xe8ad22);
-const GREEN = new THREE.Color(0x2a8a4e);
 const HEIGHT = 0.012; // above the asphalt
 
 function buildRoadPaint(scene, network) {
@@ -70,7 +70,7 @@ function buildRoadPaint(scene, network) {
     if (back) for (const o of back.lanes) lanes.push({ o: -o, dir: -1 });
     lanes.sort((p, q) => p.o - q.o);
 
-    // Dashed white between lanes going the same way, double yellow between opposing ones
+    // Dashed white between lanes going the same way, a dashed yellow keskiviiva (3 m line, 1 m gap) between opposing ones
     // (nothing across a median or a lane closed off by an obstacle)
     for (let k = 0; k + 1 < lanes.length; k++) {
       const p = lanes[k];
@@ -80,19 +80,17 @@ function buildRoadPaint(scene, network) {
       if (p.dir === q.dir) {
         along(e, mid, 0.13, WHITE, 12, 0.25);
       } else {
-        along(e, mid - 0.12, 0.11, YELLOW);
-        along(e, mid + 0.12, 0.11, YELLOW);
+        along(e, mid, 0.12, YELLOW, 4, 0.75);
       }
     }
 
-    // Wide one-way avenues: edge line, then a buffer and a green bike lane along the curb on the side left free
+    // Wide one-way streets: edge line, then a buffer and a white-lined bike lane along the curb on the side left free
     if (!back && e.axis === 'ave' && lanes.length >= 4) {
       for (const [edge, sign] of [[lanes[lanes.length - 1].o + 1.8, 1], [lanes[0].o - 1.8, -1]]) {
         const curb = sign * e.half;
         if ((curb - edge) * sign < 3.5) continue;
         along(e, edge + sign * 0.2, 0.13, WHITE);
         along(e, curb - sign * 2.4, 0.13, WHITE);
-        along(e, curb - sign * 1.3, 2.0, GREEN);
       }
     }
 
