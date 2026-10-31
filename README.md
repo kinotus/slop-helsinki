@@ -44,9 +44,16 @@ Fork it, remix it, improve it, break it. Make games, animations, films, experime
 
 ## Ideas
 
+
+- Snowy and slush weather modes, make vehicles slip
 - Real building heights from the 3D city model for collisions and the minimap.
 - Denser, more accurate trees from the City of Helsinki tree register (puurekisteri).
 - Better ground, roof and water textures from the city's orthophotos.
+- Better object models from Helsinki's kaupunkitilaohje https://kaupunkitilaohje.hel.fi/kortti/kaupunkikalusteiden-3d-mallit/
+- Change basic bike to yellow official city-bike "Alepa-fillari".
+- Add city bike stations from [HSL ](https://public-transport-hslhrt.opendata.arcgis.com/datasets/726277c507ef4914b0aec3cbcfcbfafc_0/explore)
+- Add rental e-scoots everywhere,  you pick up one while in walking mode. Companies include DOTT (blue), Ryde (green), VOI (red).
+- Add autonomous delivery robots (Starship and Coco) near restaurants and driving near them.
 - Ferries to Suomenlinna from Kauppatori.
 - Send a PR. Build the city!
 
