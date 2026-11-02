@@ -477,7 +477,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const riderInst = new THREE.InstancedMesh(riderGeo, bikeMat, NUM_BIKES);
   const skinInst = new THREE.InstancedMesh(skinGeo, bikeMat, NUM_BIKES);
   const bikeMeshes = [bikeInst, riderInst, skinInst];
-  const bikePalette = [0x15181c, 0x2b2f36, 0x6e1f24, 0x1d3b6c, 0xb9c0c8, 0x2f5d3a].map((c) => new THREE.Color(c));
+  // Helsinki yellow city bikes
+  const cityBikeYellow = 0xf5c400;
+  // 40% of bikes should be city bikes
+  const bikePalette = [0x15181c, 0x2b2f36, 0x6e1f24, 0x1d3b6c, 0xb9c0c8, 0x2f5d3a, cityBikeYellow, cityBikeYellow, cityBikeYellow, cityBikeYellow,].map((c) => new THREE.Color(c));
   const jacketPalette = [0xd4442f, 0x1d3b6c, 0x2b2f36, 0x3b7a57, 0xe7b52b, 0x7a4a8a, 0xc7ccd4, 0x0f1114].map((c) => new THREE.Color(c));
   const white = new THREE.Color(1, 1, 1);
   const bikes = [];

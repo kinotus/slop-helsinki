@@ -1188,7 +1188,7 @@ function carPlateTexture() {
   canvas.width = 128;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  const rows = ['KTB-472', 'JTR-831', 'HXL-250', 'ZAP-617'];
+  const rows = ['STD-1', 'HES-4', 'HEX-256', 'HKI-999'];
   rows.forEach((label, row) => {
     const y0 = row * 64;
     ctx.fillStyle = '#f7f8f6';

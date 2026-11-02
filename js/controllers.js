@@ -53,7 +53,7 @@ const groundCollider = { type: 'ground' };
 const CAR_DRIVE = {
   speed: 36, reverseSpeed: 10.5, acceleration: 4.5,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
-  rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
+  rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 15,
   wheelbase: 2.76, grip: 9.5, cornering: 10.5 // Wheelbase (m), tire and steering acceleration limits (m/s²).
 };
 const BICYCLE_DRIVE = {
@@ -823,7 +823,10 @@ class ThirdPersonControllerManager {
     const leanPivot = new THREE.Group();
     root.add(leanPivot);
 
-    const frameMat = createCarPaintMaterial(0x0078e8);
+// Helsinki city bike yellow
+    const frameMat = createCarPaintMaterial(0xFFD700);
+//    const frameMat = createCarPaintMaterial(0x0078e8);
+
     const tireMat = new THREE.MeshStandardNodeMaterial({
       color: 0x181a1e,
       roughness: 0.60

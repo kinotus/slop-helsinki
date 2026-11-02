@@ -18,7 +18,7 @@ const BRANDS = {
   'Starbucks': ['#00704a', '#ffffff'], "McDonald's": ['#da291c', '#ffc72c'], 'Burger King': ['#d62300', '#f5ebdc'],
   'Subway': ['#008c15', '#ffc600'], 'Taco Bell': ['#702082', '#ffffff'], 'Picnic': ['#e4007c', '#ffffff'],
   'Telia': ['#990ae3', '#ffffff'], 'Musti ja Mirri': ['#00a3e0', '#ffffff'], 'Iittala': ['#111111', '#ffffff'],
-  'Søstrene Grene': ['#ffffff', '#1b1b1b'], 'Normal': ['#ffffff', '#111111'], 'Joe & The Juice': ['#111111', '#f5a9b8']
+  'Normal': ['#ffffff', '#111111'], 'Joe & The Juice': ['#111111', '#f5a9b8']
 };
 const MUTED = [['#1c2b3a', '#f2e8cf'], ['#2d3a2e', '#f4f1de'], ['#3b2a2a', '#f6e8d0'], ['#26323f', '#ffffff'],
   ['#4a3b2a', '#fff3d6'], ['#222222', '#e8e8e8'], ['#33262e', '#ffe9ef'], ['#1f3d3d', '#e5fffa']];
