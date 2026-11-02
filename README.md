@@ -12,6 +12,7 @@ Based on [Slop Utrecht](https://github.com/bertt/slop-utrecht) by bertt, itself 
 - Street and park trees from OpenStreetMap (`natural=tree`).
 - Bilingual street-name signs (Finnish / Swedish), Finnish road markings and number plates, dark Helsinki taxis, blue-light police cars, HSL buses and green-and-white HSL trams running the real routes.
 - Low northern sun angles for 60° N.
+- Yellow city bikes
 
 Buildings and terrain come from the City of Helsinki's open 3D data. Everything else comes from OpenStreetMap. The OSM buildings are still used for collisions and the minimap, and as a fallback when the 3D model can't be loaded.
 
@@ -43,14 +44,12 @@ The logo is loaded from `assets/logo-helsinki.svg`. If that file is missing, an 
 Fork it, remix it, improve it, break it. Make games, animations, films, experiments, or something completely different. Use it as a starting point and take it wherever you want. Have fun!
 
 ## Ideas
-
-
 - Snowy and slush weather modes, make vehicles slip
 - Real building heights from the 3D city model for collisions and the minimap.
 - Denser, more accurate trees from the City of Helsinki tree register (puurekisteri).
 - Better ground, roof and water textures from the city's orthophotos.
 - Better object models from Helsinki's kaupunkitilaohje https://kaupunkitilaohje.hel.fi/kortti/kaupunkikalusteiden-3d-mallit/
-- Change basic bike to yellow official city-bike "Alepa-fillari".
+- Change basic bike to yellow official city-bike "Alepa-fillari" ✅
 - Add city bike stations from [HSL ](https://public-transport-hslhrt.opendata.arcgis.com/datasets/726277c507ef4914b0aec3cbcfcbfafc_0/explore)
 - Add rental e-scoots everywhere,  you pick up one while in walking mode. Companies include DOTT (blue), Ryde (green), VOI (red).
 - Add autonomous delivery robots (Starship and Coco) near restaurants and driving near them.
